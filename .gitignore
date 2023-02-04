@@ -1,0 +1,54 @@
+# Build outputs
+bin/
+obj/
+
+# Visual Studio
+*.suo
+*.user
+*.aps
+*.pdb
+*.ipdb
+
+# Visual Studio
+.vs/
+
+# Visual Studio Code
+.vscode/
+
+# ReSharper files
+_ReSharper*/
+
+# User-specific files
+*.csproj.user
+
+# Build results
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+build/
+
+# .NET Core
+*.runtimeconfig.json
+
+# NuGet packages
+**/packages/
+
+# Rider
+.idea/
+
+# MSTest test Results
+[Tt]est[Rr]esult*/
+
+# NUnit
+test-*.xml
+*.TestResult.xml
+
+# Cache files for better performance
+# (Delete only when everything's working)
+*.dll
+*.exe
+*.obj
+
+# Logs
+*.log
