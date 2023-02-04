@@ -1,4 +1,5 @@
 ﻿using System.Collections.Concurrent;
+using System.Linq.Expressions;
 using System.Net.Sockets;
 using System.Reflection;
 
@@ -6,7 +7,7 @@ namespace NosBarrage.Core.Packets;
 
 public class PacketDeserializer
 {
-    private readonly ConcurrentDictionary<string, Type> _handlerTypes = new();
+    private readonly ConcurrentDictionary<string, Func<IPacketHandler>> _handlerFactories = new ConcurrentDictionary<string, Func<IPacketHandler>>();
 
     public PacketDeserializer(Assembly assembly)
     {
@@ -21,7 +22,13 @@ public class PacketDeserializer
         foreach (var handlerType in handlerTypes)
         {
             var attribute = (PacketHandlerAttribute)handlerType.GetCustomAttribute(typeof(PacketHandlerAttribute), false)!;
-            _handlerTypes[attribute.PacketName] = handlerType;
+            var constructor = handlerType.GetConstructor(Type.EmptyTypes);
+            if (constructor == null)
+                continue;
+
+            var newExp = Expression.New(constructor);
+            var lambda = Expression.Lambda<Func<IPacketHandler>>(newExp);
+            _handlerFactories[attribute.PacketName] = lambda.Compile();
         }
     }
 
@@ -30,14 +37,14 @@ public class PacketDeserializer
         var parts = packet.Split(' ');
         var command = parts[0];
 
-        if (_handlerTypes.TryGetValue(command, out var handlerType))
+        if (_handlerFactories.TryGetValue(command, out var handlerFactory))
         {
+            var handler = handlerFactory();
             var args = parts.Skip(1).ToArray();
-            var handler = (IPacketHandler)Activator.CreateInstance(handlerType)!;
             handler.HandleAsync(args, socket);
             return;
         }
 
-        Console.WriteLine("No handler found");
+        Console.WriteLine("error (deserialize) : packet handlers wasn't found");
     }
 }
