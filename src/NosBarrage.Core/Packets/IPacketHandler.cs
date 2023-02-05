@@ -2,7 +2,7 @@
 
 namespace NosBarrage.Core.Packets;
 
-public interface IPacketHandler
+public interface IPacketHandler<T>
 {
-    Task HandleAsync(string[] args, Socket socket);
+    Task HandleAsync(T args, Socket socket);
 }
