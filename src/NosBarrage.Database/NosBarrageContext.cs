@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using NosBarrage.Shared.Entities;
 
 namespace NosBarrage.Database;
 
@@ -10,4 +11,6 @@ public class NosBarrageContext : DbContext
     {
         _options = options;
     }
+
+    public DbSet<AccountEntity> Account { get; set; }
 }

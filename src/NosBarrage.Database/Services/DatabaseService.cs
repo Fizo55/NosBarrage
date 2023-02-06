@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using System.Linq.Expressions;
 
 namespace NosBarrage.Database.Services
 {
@@ -14,6 +15,15 @@ namespace NosBarrage.Database.Services
         public async Task<IEnumerable<TEntity>> GetAllAsync()
         {
             return await _context.Set<TEntity>().ToListAsync();
+        }
+
+        public async Task<TEntity> GetByPropertiesAsync(Expression<Func<TEntity, bool>> predicate)
+        {
+            var entity = await _context.Set<TEntity>().SingleOrDefaultAsync(predicate);
+            if (entity == null)
+                return null;
+
+            return entity;
         }
 
         public async Task<TEntity> GetAsync(int id)
