@@ -2,7 +2,7 @@
 {
     public class NoS0575PacketArgs
     {
-        public NoS0575PacketArgs(int sessionId, string? name, string? password, Guid? clientId, string? unknown, string? regionType, string? clientVersion, string? md5String)
+        public NoS0575PacketArgs(int sessionId, string? name, string? password, string? clientId, string? unknown, string? regionType, string? clientVersion, string? md5String)
         {
             SessionId = sessionId;
             Name = name;
@@ -20,7 +20,7 @@
 
         public string? Password { get; set; }
 
-        public Guid? ClientId { get; set; }
+        public string? ClientId { get; set; }
 
         public string? Unknown { get; set; }
 
