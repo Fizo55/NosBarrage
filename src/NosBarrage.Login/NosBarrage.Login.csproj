@@ -21,11 +21,13 @@
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="7.0.0" />
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="7.0.0" />
     <PackageReference Include="NetEscapades.Configuration.Yaml" Version="2.2.0" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL.Design" Version="1.1.0" />
   </ItemGroup>
 
 
   <ItemGroup>
     <ProjectReference Include="..\NosBarrage.Core\NosBarrage.Core.csproj" />
+    <ProjectReference Include="..\NosBarrage.Database\NosBarrage.Database.csproj" />
     <ProjectReference Include="..\NosBarrage.PacketHandlers\NosBarrage.PacketHandlers.csproj" />
     <ProjectReference Include="..\NosBarrage.Shared\NosBarrage.Shared.csproj" />
   </ItemGroup>

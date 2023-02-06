@@ -1,9 +1,13 @@
 ﻿using Autofac;
 using Autofac.Extensions.DependencyInjection;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 using NosBarrage.Core.Pipeline;
+using NosBarrage.Database;
+using NosBarrage.Database.Services;
 using NosBarrage.PacketHandlers.Login;
 using NosBarrage.Shared.Configuration;
 using System.Reflection;
@@ -17,6 +21,7 @@ class LoginServerBootstrap
     {
         Assembly asm = Assembly.GetAssembly(typeof(NoS0575PacketHandler))!;
         containerBuilder.RegisterType<PipelineService>().AsImplementedInterfaces().WithParameter("asm", asm);
+        containerBuilder.RegisterGeneric(typeof(DatabaseService<>)).AsImplementedInterfaces().InstancePerLifetimeScope();
     }
 
     static async Task Main(string[] _)
@@ -37,6 +42,8 @@ class LoginServerBootstrap
                     .AddYamlFile("appsettings.yml", optional: false, reloadOnChange: true);
 
                 services.Configure<LoginConfiguration>(builder.Build());
+                var loginConfig = services.BuildServiceProvider().GetRequiredService<IOptions<LoginConfiguration>>().Value;
+                services.AddDbContext<NosBarrageContext>(options => options.UseNpgsql(loginConfig.Database));
                 services.AddHostedService<LoginServer>();
             })
             .Build();

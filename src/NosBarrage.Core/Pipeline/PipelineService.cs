@@ -12,7 +12,7 @@ namespace NosBarrage.Core.Pipeline;
 
 public class PipelineService : IPipelineService
 {
-    private static PacketDeserializer _deserializer;
+    private static PacketDeserializer? _deserializer;
 
     public PipelineService(Assembly asm)
     {
@@ -22,7 +22,7 @@ public class PipelineService : IPipelineService
     public async Task StartServer(LoginConfiguration loginConfiguration)
     {
         var listenSocket = new Socket(SocketType.Stream, ProtocolType.Tcp);
-        IPAddress address = IPAddress.Parse(loginConfiguration.Adress);
+        IPAddress address = IPAddress.Parse(loginConfiguration.Address);
         listenSocket.Bind(new IPEndPoint(address, loginConfiguration.Port));
 
         Console.WriteLine($"Listening on port {loginConfiguration.Port}");

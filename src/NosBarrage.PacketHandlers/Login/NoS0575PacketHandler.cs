@@ -9,6 +9,7 @@ public class NoS0575PacketHandler : IPacketHandler<NoS0575PacketArgs>
 {
     public Task HandleAsync(NoS0575PacketArgs args, Socket socket)
     {
+        Console.WriteLine(args.ClientId);
         return Task.CompletedTask;
     }
 }
