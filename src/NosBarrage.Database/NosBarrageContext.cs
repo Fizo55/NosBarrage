@@ -5,11 +5,9 @@ namespace NosBarrage.Database;
 
 public class NosBarrageContext : DbContext
 {
-    private readonly DbContextOptions<NosBarrageContext> _options;
 
-    public NosBarrageContext(DbContextOptions<NosBarrageContext> options) : base(options)
+    public NosBarrageContext(DbContextOptions options) : base(options)
     {
-        _options = options;
     }
 
     public DbSet<AccountEntity> Account { get; set; }
