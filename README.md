@@ -1,3 +1,3 @@
 # NosBarrage
 
-This project have been done as a Epitech hub project
+This project is done as part of the Epitech hub
