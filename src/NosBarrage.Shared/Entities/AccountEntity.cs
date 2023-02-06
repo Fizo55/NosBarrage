@@ -2,4 +2,4 @@
 
 namespace NosBarrage.Shared.Entities;
 
-public record AccountEntity(int accountId, string username, string password, Authority authority);
+public record AccountEntity(int AccountId, string Username, string Password, Authority Authority);

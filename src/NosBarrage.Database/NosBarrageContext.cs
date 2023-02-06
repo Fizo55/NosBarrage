@@ -13,4 +13,10 @@ public class NosBarrageContext : DbContext
     }
 
     public DbSet<AccountEntity> Account { get; set; }
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<AccountEntity>()
+            .HasKey(e => e.AccountId);
+    }
 }
