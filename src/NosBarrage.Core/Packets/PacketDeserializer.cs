@@ -60,11 +60,11 @@ public class PacketDeserializer
 
         if (_handlerFactories.TryGetValue(command, out var handlerFactory) && _argumentTypes.TryGetValue(command, out var argumentType))
         {
-            var handler = ((dynamic)handlerFactory)();
+            var handlerType = typeof(IPacketHandler<>).MakeGenericType(argumentType);
+            var handler = ((Func<object>)handlerFactory)();
             var args = DeserializeArguments(parts.Skip(1).ToArray(), argumentType);
-            var method = handler.GetType().GetMethod("HandleAsync");
-            var genericMethod = method!.MakeGenericMethod(argumentType);
-            genericMethod.Invoke(handler, new object[] { args!, socket });
+            var method = handlerType.GetMethod("HandleAsync")!;
+            method.Invoke(handler, new object[] { args!, socket });
             return;
         }
 
