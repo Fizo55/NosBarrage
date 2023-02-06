@@ -18,7 +18,7 @@ public class PacketDeserializer
     private void LoadPacketHandlers(Assembly assembly)
     {
         var handlerTypes = assembly.GetTypes()
-            .Where(t => t.IsGenericType && t.GetGenericTypeDefinition() == typeof(IPacketHandler<>))
+            .Where(t => t.GetInterfaces().Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IPacketHandler<>)))
             .Where(t => t.GetCustomAttributes(typeof(PacketHandlerAttribute), false).Length > 0);
 
         foreach (var handlerType in handlerTypes)
