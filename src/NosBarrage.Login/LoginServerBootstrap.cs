@@ -45,6 +45,7 @@ class LoginServerBootstrap
         containerBuilder.RegisterInstance(Logger.GetLogger()).As<ILogger>();
 
         containerBuilder.RegisterType<PacketDeserializer>()
+            .WithParameter("assembly", asm)
             .AsImplementedInterfaces()
             .SingleInstance();
 

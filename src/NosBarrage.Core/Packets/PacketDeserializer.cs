@@ -1,4 +1,5 @@
-﻿using Serilog;
+﻿using Autofac;
+using Serilog;
 using System.Collections.Concurrent;
 using System.Linq.Expressions;
 using System.Net.Sockets;
@@ -12,13 +13,13 @@ public class PacketDeserializer
     private readonly ConcurrentDictionary<string, Type> _argumentTypes = new();
     private readonly ILogger _logger;
 
-    public PacketDeserializer(Assembly assembly, ILogger logger, IServiceProvider serviceProvider)
+    public PacketDeserializer(Assembly handlerAssembly, ILogger logger, IContainer container)
     {
-        LoadPacketHandlers(assembly, serviceProvider);
+        LoadPacketHandlers(handlerAssembly, container);
         _logger = logger;
     }
 
-    private void LoadPacketHandlers(Assembly assembly, IServiceProvider serviceProvider)
+    private void LoadPacketHandlers(Assembly assembly, IContainer container)
     {
         var handlerTypes = assembly.GetTypes()
             .Where(t => t.GetInterfaces().Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IPacketHandler<>)))
@@ -32,14 +33,14 @@ public class PacketDeserializer
                 continue;
 
             var argumentType = GetArgumentType(handlerType);
-            var handlerFactory = CreateHandlerFactory(constructor, argumentType, serviceProvider);
+            var handlerFactory = CreateHandlerFactory(constructor, argumentType, container);
 
             _handlerFactories[attribute.PacketName] = handlerFactory;
             _argumentTypes[attribute.PacketName] = argumentType;
         }
     }
 
-    private Delegate CreateHandlerFactory(ConstructorInfo constructor, Type argumentType, IServiceProvider serviceProvider)
+    private Delegate CreateHandlerFactory(ConstructorInfo constructor, Type argumentType, IContainer container)
     {
         var newExp = Expression.New(constructor);
         var constructorParameters = constructor.GetParameters();
@@ -48,8 +49,8 @@ public class PacketDeserializer
         for (int i = 0; i < constructorParameters.Length; i++)
         {
             var serviceType = constructorParameters[i].ParameterType;
-            var getServiceMethod = typeof(IServiceProvider).GetMethod("GetService")!.MakeGenericMethod(serviceType);
-            var service = Expression.Call(Expression.Constant(serviceProvider), getServiceMethod);
+            var getServiceMethod = typeof(IContainer).GetMethod("GetInstance")!.MakeGenericMethod(serviceType);
+            var service = Expression.Call(Expression.Constant(container), getServiceMethod);
             constructorArguments[i] = service;
         }
 

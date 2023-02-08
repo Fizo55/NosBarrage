@@ -12,11 +12,11 @@ namespace NosBarrage.Core.Pipeline;
 
 public class PipelineService : IPipelineService
 {
-    private PacketDeserializer _deserializer;
+    private IPacketDeserializer _deserializer;
     private readonly LoginConfiguration _loginConfiguration;
     private ILogger _logger;
 
-    public PipelineService(PacketDeserializer deserializer, LoginConfiguration loginConfiguration, ILogger logger)
+    public PipelineService(IPacketDeserializer deserializer, LoginConfiguration loginConfiguration, ILogger logger)
     {
         _deserializer = deserializer;
         _loginConfiguration = loginConfiguration;
