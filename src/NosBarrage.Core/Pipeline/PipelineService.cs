@@ -1,6 +1,7 @@
 ﻿using NosBarrage.Core.Cryptography;
 using NosBarrage.Core.Packets;
 using NosBarrage.Shared.Configuration;
+using Serilog;
 using System.Buffers;
 using System.IO.Pipelines;
 using System.Net;
@@ -13,10 +14,12 @@ namespace NosBarrage.Core.Pipeline;
 public class PipelineService : IPipelineService
 {
     private static PacketDeserializer? _deserializer;
+    private static ILogger _logger;
 
-    public PipelineService(Assembly asm)
+    public PipelineService(Assembly asm, ILogger logger)
     {
-        _deserializer = new PacketDeserializer(asm);
+        _deserializer = new PacketDeserializer(asm, logger);
+        _logger = logger;
     }
 
     public async Task StartServer(LoginConfiguration loginConfiguration)
@@ -25,7 +28,7 @@ public class PipelineService : IPipelineService
         IPAddress address = IPAddress.Parse(loginConfiguration.Address);
         listenSocket.Bind(new IPEndPoint(address, loginConfiguration.Port));
 
-        Console.WriteLine($"Listening on port {loginConfiguration.Port}");
+        _logger.Debug($"Listening on port {loginConfiguration.Port}");
 
         listenSocket.Listen(120);
 
@@ -38,7 +41,7 @@ public class PipelineService : IPipelineService
 
     private static async Task ProcessLinesAsync(Socket socket)
     {
-        Console.WriteLine($"[{socket.RemoteEndPoint}]: connected");
+        _logger.Debug($"Client connected");
 
         var pipe = new Pipe();
         Task writing = FillPipeAsync(socket, pipe.Writer);
@@ -46,7 +49,7 @@ public class PipelineService : IPipelineService
 
         await Task.WhenAll(reading, writing);
 
-        Console.WriteLine($"[{socket.RemoteEndPoint}]: disconnected");
+        _logger.Debug($"Client disconnected");
     }
 
     private static async Task FillPipeAsync(Socket socket, PipeWriter writer)
@@ -110,7 +113,6 @@ public class PipelineService : IPipelineService
 
     private static void ProcessLine(Socket socket, in ReadOnlySequence<byte> buffer)
     {
-        Console.Write($"[{socket.RemoteEndPoint}]: ");
         byte[] bArray = buffer.ToArray();
         var loginDecrypt = LoginCryptography.LoginDecrypt(bArray);
         _deserializer.Deserialize(Encoding.UTF8.GetString(loginDecrypt), socket);

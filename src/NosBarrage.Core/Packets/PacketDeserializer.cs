@@ -1,4 +1,5 @@
-﻿using System.Collections.Concurrent;
+﻿using Serilog;
+using System.Collections.Concurrent;
 using System.Linq.Expressions;
 using System.Net.Sockets;
 using System.Reflection;
@@ -9,10 +10,12 @@ public class PacketDeserializer
 {
     private readonly ConcurrentDictionary<string, Delegate> _handlerFactories = new();
     private readonly ConcurrentDictionary<string, Type> _argumentTypes = new();
+    private readonly ILogger _logger;
 
-    public PacketDeserializer(Assembly assembly)
+    public PacketDeserializer(Assembly assembly, ILogger logger)
     {
         LoadPacketHandlers(assembly);
+        _logger = logger;
     }
 
     private void LoadPacketHandlers(Assembly assembly)
@@ -68,7 +71,7 @@ public class PacketDeserializer
             return;
         }
 
-        Console.WriteLine("error (deserialize) : packet handlers wasn't found");
+        _logger.Error("error (deserialize) : packet handlers wasn't found");
     }
 
     private object? DeserializeArguments(string[] parts, Type argumentType)
@@ -76,7 +79,7 @@ public class PacketDeserializer
         var constructorParameters = argumentType.GetConstructors()[0].GetParameters();
         if (constructorParameters.Length != parts.Length)
         {
-            Console.WriteLine("Outdated packet");
+            _logger.Error("error (deserialize_arguments) : outdated packet");
             return null;
         }
 
