@@ -30,7 +30,7 @@ class LoginServerBootstrap
         var config = builder.Build();
 
         containerBuilder.RegisterInstance(config)
-            .As<IConfiguration>()
+            .As<IOptions<LoginConfiguration>>()
             .SingleInstance();
 
         containerBuilder.Register(c => c.Resolve<IConfiguration>().Get<LoginConfiguration>())
@@ -49,8 +49,7 @@ class LoginServerBootstrap
             .SingleInstance();
 
         containerBuilder.RegisterType<PipelineService>()
-            .AsImplementedInterfaces()
-            .WithParameter("asm", asm);
+            .AsImplementedInterfaces();
 
         containerBuilder.RegisterGeneric(typeof(DatabaseService<>))
             .AsImplementedInterfaces()
@@ -69,7 +68,6 @@ class LoginServerBootstrap
             .UseServiceProviderFactory(new AutofacServiceProviderFactory())
             .ConfigureServices((hostContext, services) =>
             {
-                services.AddOptions();
                 services.AddHostedService<LoginServer>();
             })
             .Build();
