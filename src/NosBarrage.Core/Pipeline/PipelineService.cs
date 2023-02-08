@@ -13,21 +13,23 @@ namespace NosBarrage.Core.Pipeline;
 public class PipelineService : IPipelineService
 {
     private PacketDeserializer _deserializer;
+    private readonly LoginConfiguration _loginConfiguration;
     private ILogger _logger;
 
-    public PipelineService(PacketDeserializer deserializer, ILogger logger)
+    public PipelineService(PacketDeserializer deserializer, LoginConfiguration loginConfiguration, ILogger logger)
     {
         _deserializer = deserializer;
+        _loginConfiguration = loginConfiguration;
         _logger = logger;
     }
 
-    public async Task StartServer(LoginConfiguration loginConfiguration)
+    public async Task StartServer()
     {
         var listenSocket = new Socket(SocketType.Stream, ProtocolType.Tcp);
-        IPAddress address = IPAddress.Parse(loginConfiguration.Address);
-        listenSocket.Bind(new IPEndPoint(address, loginConfiguration.Port));
+        IPAddress address = IPAddress.Parse(_loginConfiguration.Address);
+        listenSocket.Bind(new IPEndPoint(address, _loginConfiguration.Port));
 
-        _logger.Debug($"Listening on port {loginConfiguration.Port}");
+        _logger.Debug($"Listening on port {_loginConfiguration.Port}");
 
         listenSocket.Listen(120);
 

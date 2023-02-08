@@ -1,8 +1,6 @@
-﻿using NosBarrage.Shared.Configuration;
-
-namespace NosBarrage.Core.Pipeline;
+﻿namespace NosBarrage.Core.Pipeline;
 
 public interface IPipelineService
 {
-    Task StartServer(LoginConfiguration loginConfiguration);
+    Task StartServer();
 }
