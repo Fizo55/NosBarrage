@@ -12,13 +12,13 @@ public class PacketDeserializer
     private readonly ConcurrentDictionary<string, Type> _argumentTypes = new();
     private readonly ILogger _logger;
 
-    public PacketDeserializer(Assembly assembly, ILogger logger)
+    public PacketDeserializer(Assembly assembly, ILogger logger, IServiceProvider serviceProvider)
     {
-        LoadPacketHandlers(assembly);
+        LoadPacketHandlers(assembly, serviceProvider);
         _logger = logger;
     }
 
-    private void LoadPacketHandlers(Assembly assembly)
+    private void LoadPacketHandlers(Assembly assembly, IServiceProvider serviceProvider)
     {
         var handlerTypes = assembly.GetTypes()
             .Where(t => t.GetInterfaces().Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IPacketHandler<>)))
@@ -32,18 +32,30 @@ public class PacketDeserializer
                 continue;
 
             var argumentType = GetArgumentType(handlerType);
-            var handlerFactory = CreateHandlerFactory(constructor, argumentType);
+            var handlerFactory = CreateHandlerFactory(constructor, argumentType, serviceProvider);
 
             _handlerFactories[attribute.PacketName] = handlerFactory;
             _argumentTypes[attribute.PacketName] = argumentType;
         }
     }
 
-    private Delegate CreateHandlerFactory(ConstructorInfo constructor, Type argumentType)
+    private Delegate CreateHandlerFactory(ConstructorInfo constructor, Type argumentType, IServiceProvider serviceProvider)
     {
         var newExp = Expression.New(constructor);
+        var constructorParameters = constructor.GetParameters();
+        var constructorArguments = new Expression[constructorParameters.Length];
+
+        for (int i = 0; i < constructorParameters.Length; i++)
+        {
+            var serviceType = constructorParameters[i].ParameterType;
+            var getServiceMethod = typeof(IServiceProvider).GetMethod("GetService")!.MakeGenericMethod(serviceType);
+            var service = Expression.Call(Expression.Constant(serviceProvider), getServiceMethod);
+            constructorArguments[i] = service;
+        }
+
+        var handler = Expression.Invoke(newExp, constructorArguments);
         var lambdaType = typeof(Func<>).MakeGenericType(typeof(IPacketHandler<>).MakeGenericType(argumentType));
-        var lambda = Expression.Lambda(lambdaType, newExp).Compile();
+        var lambda = Expression.Lambda(lambdaType, handler).Compile();
         return lambda;
     }
 

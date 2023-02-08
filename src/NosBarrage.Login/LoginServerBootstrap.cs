@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using NosBarrage.Core.Logger;
+using NosBarrage.Core.Packets;
 using NosBarrage.Core.Pipeline;
 using NosBarrage.Database;
 using NosBarrage.Database.Services;
@@ -22,9 +23,38 @@ class LoginServerBootstrap
     private static void InitializeContainer(ContainerBuilder containerBuilder)
     {
         Assembly asm = Assembly.GetAssembly(typeof(NoS0575PacketHandler))!;
+
+        var builder = new ConfigurationBuilder()
+            .AddYamlFile("appsettings.yml", optional: false, reloadOnChange: true);
+
+        var config = builder.Build();
+
+        containerBuilder.RegisterInstance(config)
+            .As<IConfiguration>()
+            .SingleInstance();
+
+        containerBuilder.Register(c => c.Resolve<IConfiguration>().Get<LoginConfiguration>())
+            .As<LoginConfiguration>()
+            .SingleInstance();
+
+        containerBuilder.RegisterType<NosBarrageContext>()
+            .WithParameter("options", new DbContextOptionsBuilder<NosBarrageContext>()
+                .UseNpgsql(config.Get<LoginConfiguration>().Database).Options)
+            .InstancePerLifetimeScope();
+
         containerBuilder.RegisterInstance(Logger.GetLogger()).As<ILogger>();
-        containerBuilder.RegisterType<PipelineService>().AsImplementedInterfaces().WithParameter("asm", asm);
-        containerBuilder.RegisterGeneric(typeof(DatabaseService<>)).AsImplementedInterfaces().InstancePerLifetimeScope();
+
+        containerBuilder.RegisterType<PacketDeserializer>()
+            .AsImplementedInterfaces()
+            .SingleInstance();
+
+        containerBuilder.RegisterType<PipelineService>()
+            .AsImplementedInterfaces()
+            .WithParameter("asm", asm);
+
+        containerBuilder.RegisterGeneric(typeof(DatabaseService<>))
+            .AsImplementedInterfaces()
+            .InstancePerLifetimeScope();
     }
 
     static async Task Main(string[] _)
@@ -40,13 +70,6 @@ class LoginServerBootstrap
             .ConfigureServices((hostContext, services) =>
             {
                 services.AddOptions();
-
-                var builder = new ConfigurationBuilder()
-                    .AddYamlFile("appsettings.yml", optional: false, reloadOnChange: true);
-
-                services.Configure<LoginConfiguration>(builder.Build());
-                var loginConfig = services.BuildServiceProvider().GetRequiredService<IOptions<LoginConfiguration>>().Value;
-                services.AddDbContext<NosBarrageContext>(options => options.UseNpgsql(loginConfig.Database));
                 services.AddHostedService<LoginServer>();
             })
             .Build();
