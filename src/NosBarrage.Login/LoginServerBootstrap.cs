@@ -30,7 +30,7 @@ class LoginServerBootstrap
         var config = builder.Build();
 
         containerBuilder.RegisterInstance(config)
-            .As<IOptions<LoginConfiguration>>()
+            .As<IConfiguration>()
             .SingleInstance();
 
         containerBuilder.Register(c => c.Resolve<IConfiguration>().Get<LoginConfiguration>())
