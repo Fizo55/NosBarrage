@@ -101,7 +101,7 @@ public class PipelineService : IPipelineService
                 continue;
             }
 
-            ProcessLine(socket, buffer);
+            await ProcessLine(socket, buffer);
             reader.AdvanceTo(buffer.End);
 
             if (result.IsCompleted)
@@ -111,10 +111,10 @@ public class PipelineService : IPipelineService
         reader.Complete();
     }
 
-    private void ProcessLine(Socket socket, in ReadOnlySequence<byte> buffer)
+    private async Task ProcessLine(Socket socket, ReadOnlySequence<byte> buffer)
     {
         byte[] bArray = buffer.ToArray();
         var loginDecrypt = LoginCryptography.LoginDecrypt(bArray);
-        _deserializer.Deserialize(Encoding.UTF8.GetString(loginDecrypt), socket);
+        await _deserializer.Deserialize(Encoding.UTF8.GetString(loginDecrypt), socket);
     }
 }

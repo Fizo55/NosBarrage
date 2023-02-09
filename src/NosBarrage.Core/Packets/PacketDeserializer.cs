@@ -65,7 +65,7 @@ public class PacketDeserializer
         return argumentTypes.FirstOrDefault()!;
     }
 
-    public void Deserialize(string packet, Socket socket)
+    public async Task Deserialize(string packet, Socket socket)
     {
         var parts = packet.Split(' ');
         var command = parts[0];
@@ -75,7 +75,7 @@ public class PacketDeserializer
             var handler = ((Func<IServiceProvider, object>)handlerFactory)(_serviceProvider);
             var args = DeserializeArguments(parts.Skip(1).ToArray(), argumentType);
             var method = handler.GetType().GetMethod("HandleAsync")!;
-            method.Invoke(handler, new object[] { args!, socket });
+            await (Task)method.Invoke(handler, new object[] { args!, socket });
             return;
         }
 
