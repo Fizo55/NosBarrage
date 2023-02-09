@@ -36,14 +36,14 @@ public class PacketDeserializer
                 continue;
 
             var argumentType = GetArgumentType(handlerType);
-            var handlerFactory = CreateHandlerFactory(constructor, argumentType);
+            var handlerFactory = CreateHandlerFactory(constructor);
 
             _handlerFactories[attribute.PacketName] = handlerFactory;
             _argumentTypes[attribute.PacketName] = argumentType;
         }
     }
 
-    private Delegate CreateHandlerFactory(ConstructorInfo constructor, Type argumentType)
+    private Delegate CreateHandlerFactory(ConstructorInfo constructor)
     {
         var serviceProviderParam = Expression.Parameter(typeof(IServiceProvider), "serviceProvider");
         var constructorParams = constructor.GetParameters().Select(param =>
@@ -52,8 +52,7 @@ public class PacketDeserializer
             return Expression.Convert(getServiceCall, param.ParameterType);
         }).ToArray();
         var newExp = Expression.New(constructor, constructorParams);
-        var lambdaType = typeof(Func<,>).MakeGenericType(typeof(IServiceProvider), typeof(IPacketHandler<>).MakeGenericType(argumentType));
-        var lambda = Expression.Lambda(lambdaType, newExp, serviceProviderParam).Compile();
+        var lambda = Expression.Lambda(typeof(Func<IServiceProvider, object>), newExp, serviceProviderParam).Compile();
         return lambda;
     }
 
@@ -73,10 +72,9 @@ public class PacketDeserializer
 
         if (_handlerFactories.TryGetValue(command, out var handlerFactory) && _argumentTypes.TryGetValue(command, out var argumentType))
         {
-            var handlerType = typeof(IPacketHandler<>).MakeGenericType(argumentType);
-            var handler = ((Func<object>)handlerFactory)();
+            var handler = ((Func<IServiceProvider, object>)handlerFactory)(_serviceProvider);
             var args = DeserializeArguments(parts.Skip(1).ToArray(), argumentType);
-            var method = handlerType.GetMethod("HandleAsync")!;
+            var method = handler.GetType().GetMethod("HandleAsync")!;
             method.Invoke(handler, new object[] { args!, socket });
             return;
         }

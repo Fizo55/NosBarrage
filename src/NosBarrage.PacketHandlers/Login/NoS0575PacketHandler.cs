@@ -17,7 +17,7 @@ public class NoS0575PacketHandler : IPacketHandler<NoS0575PacketArgs>
 
     public Task HandleAsync(NoS0575PacketArgs args, Socket socket)
     {
-        _logger.Debug(args.ClientId.ToString());
+        _logger.Debug(args.Name);
         return Task.CompletedTask;
     }
 }
