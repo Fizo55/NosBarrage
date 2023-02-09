@@ -31,7 +31,7 @@ public class PacketDeserializer
         foreach (var handlerType in handlerTypes)
         {
             var attribute = (PacketHandlerAttribute)handlerType.GetCustomAttribute(typeof(PacketHandlerAttribute), false)!;
-            var constructor = handlerType.GetConstructor(Type.EmptyTypes);
+            var constructor = handlerType.GetConstructors().FirstOrDefault();
             if (constructor == null)
                 continue;
 
@@ -46,7 +46,11 @@ public class PacketDeserializer
     private Delegate CreateHandlerFactory(ConstructorInfo constructor, Type argumentType)
     {
         var serviceProviderParam = Expression.Parameter(typeof(IServiceProvider), "serviceProvider");
-        var constructorParams = constructor.GetParameters().Select(param => Expression.Convert(Expression.Call(serviceProviderParam, "GetService", null, Expression.Constant(param.ParameterType)), param.ParameterType)).ToArray();
+        var constructorParams = constructor.GetParameters().Select(param =>
+        {
+            var getServiceCall = Expression.Call(serviceProviderParam, "GetService", null, Expression.Constant(param.ParameterType));
+            return Expression.Convert(getServiceCall, param.ParameterType);
+        }).ToArray();
         var newExp = Expression.New(constructor, constructorParams);
         var lambdaType = typeof(Func<,>).MakeGenericType(typeof(IServiceProvider), typeof(IPacketHandler<>).MakeGenericType(argumentType));
         var lambda = Expression.Lambda(lambdaType, newExp, serviceProviderParam).Compile();

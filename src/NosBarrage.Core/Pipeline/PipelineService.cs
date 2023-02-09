@@ -3,7 +3,6 @@ using NosBarrage.Core.Packets;
 using NosBarrage.Shared.Configuration;
 using Serilog;
 using System.Buffers;
-using System.ComponentModel.Design;
 using System.IO.Pipelines;
 using System.Net;
 using System.Net.Sockets;
@@ -16,11 +15,9 @@ public class PipelineService : IPipelineService
 {
     private PacketDeserializer _deserializer;
     private ILogger _logger;
-    private IServiceProvider _serviceProvider;
 
     public PipelineService(Assembly asm, IServiceProvider serviceProvider, ILogger logger)
     {
-        _serviceProvider = serviceProvider;
         _deserializer = new PacketDeserializer(asm, logger, serviceProvider);
         _logger = logger;
     }
