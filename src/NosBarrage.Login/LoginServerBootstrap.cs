@@ -18,7 +18,6 @@ namespace NosBarrage.Login;
 
 class LoginServerBootstrap
 {
-
     private static void InitializeContainer(ContainerBuilder containerBuilder)
     {
         containerBuilder.RegisterInstance(Logger.GetLogger()).As<ILogger>();
