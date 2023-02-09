@@ -21,10 +21,32 @@ class LoginServerBootstrap
 
     private static void InitializeContainer(ContainerBuilder containerBuilder)
     {
-        Assembly asm = Assembly.GetAssembly(typeof(NoS0575PacketHandler))!;
         containerBuilder.RegisterInstance(Logger.GetLogger()).As<ILogger>();
-        containerBuilder.RegisterType<PipelineService>().AsImplementedInterfaces().WithParameter("asm", asm);
         containerBuilder.RegisterGeneric(typeof(DatabaseService<>)).AsImplementedInterfaces().InstancePerLifetimeScope();
+    }
+
+    public static void ConfigureServices(HostBuilderContext host, IServiceCollection services)
+    {
+        services.AddOptions();
+
+        var builder = new ConfigurationBuilder()
+            .AddYamlFile("appsettings.yml", optional: false, reloadOnChange: true);
+
+        services.Configure<LoginConfiguration>(builder.Build());
+        var loginConfig = services.BuildServiceProvider().GetRequiredService<IOptions<LoginConfiguration>>().Value;
+        services.AddDbContext<NosBarrageContext>(options => options.UseNpgsql(loginConfig.Database));
+        services.AddHostedService<LoginServer>();
+
+        var containerBuilder = new ContainerBuilder();
+        InitializeContainer(containerBuilder);
+        containerBuilder.Populate(services);
+        var container = containerBuilder.Build();
+        var serviceProvider = new AutofacServiceProvider(container);
+        var pipelineService = ActivatorUtilities.CreateInstance<PipelineService>(serviceProvider,
+            Assembly.GetAssembly(typeof(NoS0575PacketHandler))!,
+            serviceProvider,
+            serviceProvider.GetService<ILogger>());
+        services.AddSingleton<IPipelineService>(pipelineService);
     }
 
     static async Task Main(string[] _)
@@ -35,19 +57,7 @@ class LoginServerBootstrap
     static IHost CreateWebHostBuilder() =>
         new HostBuilder()
             .UseConsoleLifetime()
-            .ConfigureContainer<ContainerBuilder>(InitializeContainer)
+            .ConfigureServices(ConfigureServices)
             .UseServiceProviderFactory(new AutofacServiceProviderFactory())
-            .ConfigureServices((hostContext, services) =>
-            {
-                services.AddOptions();
-
-                var builder = new ConfigurationBuilder()
-                    .AddYamlFile("appsettings.yml", optional: false, reloadOnChange: true);
-
-                services.Configure<LoginConfiguration>(builder.Build());
-                var loginConfig = services.BuildServiceProvider().GetRequiredService<IOptions<LoginConfiguration>>().Value;
-                services.AddDbContext<NosBarrageContext>(options => options.UseNpgsql(loginConfig.Database));
-                services.AddHostedService<LoginServer>();
-            })
             .Build();
 }

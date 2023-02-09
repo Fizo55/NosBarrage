@@ -1,4 +1,6 @@
-﻿using Serilog;
+﻿using Autofac;
+using Serilog;
+using System;
 using System.Collections.Concurrent;
 using System.Linq.Expressions;
 using System.Net.Sockets;
@@ -11,11 +13,13 @@ public class PacketDeserializer
     private readonly ConcurrentDictionary<string, Delegate> _handlerFactories = new();
     private readonly ConcurrentDictionary<string, Type> _argumentTypes = new();
     private readonly ILogger _logger;
+    private readonly IServiceProvider _serviceProvider;
 
-    public PacketDeserializer(Assembly assembly, ILogger logger)
+    public PacketDeserializer(Assembly assembly, ILogger logger, IServiceProvider serviceProvider)
     {
         LoadPacketHandlers(assembly);
         _logger = logger;
+        _serviceProvider = serviceProvider;
     }
 
     private void LoadPacketHandlers(Assembly assembly)
@@ -43,7 +47,8 @@ public class PacketDeserializer
     {
         var newExp = Expression.New(constructor);
         var lambdaType = typeof(Func<>).MakeGenericType(typeof(IPacketHandler<>).MakeGenericType(argumentType));
-        var lambda = Expression.Lambda(lambdaType, newExp).Compile();
+        var serviceProviderParam = Expression.Parameter(typeof(IServiceProvider), "serviceProvider");
+        var lambda = Expression.Lambda(lambdaType, newExp, serviceProviderParam).Compile();
         return lambda;
     }
 

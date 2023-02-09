@@ -3,6 +3,7 @@ using NosBarrage.Core.Packets;
 using NosBarrage.Shared.Configuration;
 using Serilog;
 using System.Buffers;
+using System.ComponentModel.Design;
 using System.IO.Pipelines;
 using System.Net;
 using System.Net.Sockets;
@@ -13,12 +14,14 @@ namespace NosBarrage.Core.Pipeline;
 
 public class PipelineService : IPipelineService
 {
-    private static PacketDeserializer? _deserializer;
-    private static ILogger _logger;
+    private PacketDeserializer _deserializer;
+    private ILogger _logger;
+    private IServiceProvider _serviceProvider;
 
-    public PipelineService(Assembly asm, ILogger logger)
+    public PipelineService(Assembly asm, IServiceProvider serviceProvider, ILogger logger)
     {
-        _deserializer = new PacketDeserializer(asm, logger);
+        _serviceProvider = serviceProvider;
+        _deserializer = new PacketDeserializer(asm, logger, serviceProvider);
         _logger = logger;
     }
 
@@ -39,7 +42,7 @@ public class PipelineService : IPipelineService
         }
     }
 
-    private static async Task ProcessLinesAsync(Socket socket)
+    private async Task ProcessLinesAsync(Socket socket)
     {
         _logger.Debug($"Client connected");
 
@@ -52,7 +55,7 @@ public class PipelineService : IPipelineService
         _logger.Debug($"Client disconnected");
     }
 
-    private static async Task FillPipeAsync(Socket socket, PipeWriter writer)
+    private async Task FillPipeAsync(Socket socket, PipeWriter writer)
     {
         const int minimumBufferSize = 512;
 
@@ -86,7 +89,7 @@ public class PipelineService : IPipelineService
         writer.Complete();
     }
 
-    private static async Task ReadPipeAsync(Socket socket, PipeReader reader)
+    private async Task ReadPipeAsync(Socket socket, PipeReader reader)
     {
         while (true)
         {
@@ -111,7 +114,7 @@ public class PipelineService : IPipelineService
         reader.Complete();
     }
 
-    private static void ProcessLine(Socket socket, in ReadOnlySequence<byte> buffer)
+    private void ProcessLine(Socket socket, in ReadOnlySequence<byte> buffer)
     {
         byte[] bArray = buffer.ToArray();
         var loginDecrypt = LoginCryptography.LoginDecrypt(bArray);
