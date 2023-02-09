@@ -45,9 +45,10 @@ public class PacketDeserializer
 
     private Delegate CreateHandlerFactory(ConstructorInfo constructor, Type argumentType)
     {
-        var newExp = Expression.New(constructor);
-        var lambdaType = typeof(Func<>).MakeGenericType(typeof(IPacketHandler<>).MakeGenericType(argumentType));
         var serviceProviderParam = Expression.Parameter(typeof(IServiceProvider), "serviceProvider");
+        var constructorParams = constructor.GetParameters().Select(param => Expression.Convert(Expression.Call(serviceProviderParam, "GetService", null, Expression.Constant(param.ParameterType)), param.ParameterType)).ToArray();
+        var newExp = Expression.New(constructor, constructorParams);
+        var lambdaType = typeof(Func<,>).MakeGenericType(typeof(IServiceProvider), typeof(IPacketHandler<>).MakeGenericType(argumentType));
         var lambda = Expression.Lambda(lambdaType, newExp, serviceProviderParam).Compile();
         return lambda;
     }
