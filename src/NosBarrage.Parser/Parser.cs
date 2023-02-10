@@ -1,5 +1,5 @@
 ﻿using Microsoft.Extensions.Hosting;
-using Serilog
+using Serilog;
 
 namespace NosBarrage.Parser;
 

@@ -2,5 +2,5 @@
 
 public interface IParser
 {
-    Task ParseAsync();
+    Task ParseAsync(CancellationToken token);
 }

@@ -37,5 +37,18 @@ class ParserBootstrap
         InitializeContainer(containerBuilder);
         containerBuilder.Populate(services);
         var container = containerBuilder.Build();
+        var serviceProvider = new AutofacServiceProvider(container);
     }
+
+    static async Task Main(string[] _)
+    {
+        await CreateWebHostBuilder().RunAsync().ConfigureAwait(false);
+    }
+
+    static IHost CreateWebHostBuilder() =>
+        new HostBuilder()
+            .UseConsoleLifetime()
+            .ConfigureServices(ConfigureServices)
+            .UseServiceProviderFactory(new AutofacServiceProviderFactory())
+            .Build();
 }
