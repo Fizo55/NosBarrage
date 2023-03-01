@@ -84,28 +84,18 @@ public class PacketDeserializer
 
     private object? DeserializeArguments(string[] parts, Type argumentType)
     {
-        var constructorParameters = argumentType.GetConstructors()[0].GetParameters();
+        var constructor = argumentType.GetConstructors()[0];
+        var constructorParameters = constructor.GetParameters();
+
         if (constructorParameters.Length != parts.Length)
         {
-            _logger.Error("error (deserialize_arguments) : outdated packet");
+            _logger.Error("error (deserialize_arguments): outdated packet");
             return null;
         }
-
-        var types = new Type[constructorParameters.Length];
-        for (int i = 0; i < constructorParameters.Length; i++)
-        {
-            types[i] = constructorParameters[i].ParameterType;
-        }
-
-        var constructor = argumentType.GetConstructor(types);
-        if (constructor == null)
-            return null;
 
         var arguments = new object[constructorParameters.Length];
         for (int i = 0; i < constructorParameters.Length; i++)
-        {
             arguments[i] = Convert.ChangeType(parts[i], constructorParameters[i].ParameterType);
-        }
 
         return constructor.Invoke(arguments);
     }
