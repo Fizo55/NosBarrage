@@ -23,6 +23,12 @@ namespace NosBarrage.Database.Services
             return entity!;
         }
 
+        public async Task<bool> AnyAsync(Expression<Func<TEntity, bool>> predicate)
+        {
+            bool exist = await _context.Set<TEntity>().AnyAsync(predicate);
+            return exist;
+        }
+
         public async Task<TEntity> GetAsync(int id)
         {
             var entity = await _context.Set<TEntity>().FindAsync(id);
