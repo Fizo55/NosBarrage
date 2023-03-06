@@ -13,38 +13,37 @@ using NosBarrage.Shared.Configuration;
 using System.Reflection;
 using ILogger = Serilog.ILogger;
 
-namespace NosBarrage.Login
+namespace NosBarrage.Login;
+
+class LoginServerBootstrap
 {
-    class LoginServerBootstrap
+    static void ConfigureServices(HostBuilderContext host, IServiceCollection services)
     {
-        static void ConfigureServices(HostBuilderContext host, IServiceCollection services)
-        {
-            services.AddOptions();
+        services.AddOptions();
 
-            var builder = new ConfigurationBuilder()
-                .AddYamlFile("appsettings.yml", optional: false, reloadOnChange: true);
+        var builder = new ConfigurationBuilder()
+            .AddYamlFile("appsettings.yml", optional: false, reloadOnChange: true);
 
-            services.Configure<LoginConfiguration>(builder.Build());
-            var loginConfig = services.BuildServiceProvider().GetRequiredService<IOptions<LoginConfiguration>>().Value;
-            services.AddDbContext<NosBarrageContext>(options => options.UseNpgsql(loginConfig.Database));
-            services.AddHostedService<LoginServer>();
+        services.Configure<LoginConfiguration>(builder.Build());
+        var loginConfig = services.BuildServiceProvider().GetRequiredService<IOptions<LoginConfiguration>>().Value;
+        services.AddDbContext<NosBarrageContext>(options => options.UseNpgsql(loginConfig.Database));
+        services.AddHostedService<LoginServer>();
 
-            services.AddSingleton(Logger.GetLogger());
-            services.AddScoped(typeof(IDatabaseService<>), typeof(DatabaseService<>));
+        services.AddSingleton(Logger.GetLogger());
+        services.AddScoped(typeof(IDatabaseService<>), typeof(DatabaseService<>));
 
-            IServiceProvider serviceProvider = services.BuildServiceProvider();
-            var pipelineService = new PipelineService(Assembly.GetAssembly(typeof(NoS0575PacketHandler))!, serviceProvider, serviceProvider.GetService<ILogger>()!);
-            services.AddSingleton<IPipelineService>(pipelineService);
-        }
+        IServiceProvider serviceProvider = services.BuildServiceProvider();
+        var pipelineService = new PipelineService(Assembly.GetAssembly(typeof(NoS0575PacketHandler))!, serviceProvider, serviceProvider.GetService<ILogger>()!);
+        services.AddSingleton<IPipelineService>(pipelineService);
+    }
 
-        static IHostBuilder CreateWebHostBuilder(string[] args) =>
-            Host.CreateDefaultBuilder(args)
-                .ConfigureLogging(logging => logging.ClearProviders())
-                .ConfigureServices(ConfigureServices);
+    static IHostBuilder CreateWebHostBuilder(string[] args) =>
+        Host.CreateDefaultBuilder(args)
+            .ConfigureLogging(logging => logging.ClearProviders())
+            .ConfigureServices(ConfigureServices);
 
-        static async Task Main(string[] args)
-        {
-            await CreateWebHostBuilder(args).RunConsoleAsync().ConfigureAwait(false);
-        }
+    static async Task Main(string[] args)
+    {
+        await CreateWebHostBuilder(args).RunConsoleAsync().ConfigureAwait(false);
     }
 }
