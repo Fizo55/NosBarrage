@@ -19,7 +19,7 @@ namespace NosBarrage.Database.Services
 
         public async Task<TEntity> GetByPropertiesAsync(Expression<Func<TEntity, bool>> predicate)
         {
-            var entity = await _context.Set<TEntity>().SingleOrDefaultAsync(predicate);
+            var entity = await _context.Set<TEntity>().FirstOrDefaultAsync(predicate);
             return entity!;
         }
 

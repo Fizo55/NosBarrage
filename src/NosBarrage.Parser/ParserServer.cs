@@ -19,6 +19,6 @@ public class ParserServer : BackgroundService
     {
         _logger.Debug("Parser started");
         await Task.WhenAll(_parser.Select(parser => parser.ParseAsync()));
-
+        _logger.Debug("Parsing done");
     }
 }
