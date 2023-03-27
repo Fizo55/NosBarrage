@@ -15,6 +15,7 @@ public class PipelineService : IPipelineService
 {
     private PacketDeserializer _deserializer;
     private ILogger _logger;
+    private readonly ArrayPool<byte> _arrayPool = ArrayPool<byte>.Shared;
 
     public PipelineService(Assembly asm, IServiceProvider serviceProvider, ILogger logger)
     {
@@ -24,7 +25,7 @@ public class PipelineService : IPipelineService
 
     public async Task StartServer(LoginConfiguration loginConfiguration)
     {
-        var listenSocket = new Socket(SocketType.Stream, ProtocolType.Tcp);
+        using var listenSocket = new Socket(SocketType.Stream, ProtocolType.Tcp);
         IPAddress address = IPAddress.Parse(loginConfiguration.Address);
         listenSocket.Bind(new IPEndPoint(address, loginConfiguration.Port));
 
@@ -34,8 +35,11 @@ public class PipelineService : IPipelineService
 
         while (true)
         {
-            var socket = await listenSocket.AcceptAsync();
-            _ = ProcessLinesAsync(socket);
+            var acceptEventArgs = new SocketAsyncEventArgs();
+            acceptEventArgs.Completed += async (_, e) => await ProcessLinesAsync(e.AcceptSocket);
+
+            if (!listenSocket.AcceptAsync(acceptEventArgs))
+                await ProcessLinesAsync(acceptEventArgs.AcceptSocket);
         }
     }
 
@@ -49,6 +53,9 @@ public class PipelineService : IPipelineService
 
         await Task.WhenAll(reading, writing);
 
+        socket.Shutdown(SocketShutdown.Both);
+        socket.Close();
+
         _logger.Debug($"Client disconnected");
     }
 
@@ -56,34 +63,45 @@ public class PipelineService : IPipelineService
     {
         const int minimumBufferSize = 512;
 
-        while (true)
-        {
-            try
-            {
-                Memory<byte> memory = writer.GetMemory(minimumBufferSize);
+        var receiveEventArgs = new SocketAsyncEventArgs();
+        var buffer = _arrayPool.Rent(minimumBufferSize);
+        receiveEventArgs.SetBuffer(buffer, 0, minimumBufferSize);
 
-                int bytesRead = await socket.ReceiveAsync(memory, SocketFlags.None);
+        try
+        {
+            while (true)
+            {
+                TaskCompletionSource<int> tcs = new();
+                receiveEventArgs.Completed += OnReceiveCompleted;
+                receiveEventArgs.UserToken = tcs;
+
+                if (!socket.ReceiveAsync(receiveEventArgs))
+                    OnReceiveCompleted(socket, receiveEventArgs);
+
+                int bytesRead = await tcs.Task;
+
                 if (bytesRead == 0)
-                {
                     break;
-                }
 
                 writer.Advance(bytesRead);
-            }
-            catch
-            {
-                break;
-            }
+                var result = await writer.FlushAsync();
 
-            FlushResult result = await writer.FlushAsync();
-
-            if (result.IsCompleted)
-            {
-                break;
+                if (result.IsCompleted)
+                    break;
             }
+        }
+        finally
+        {
+            _arrayPool.Return(buffer);
         }
 
         writer.Complete();
+
+        void OnReceiveCompleted(object sender, SocketAsyncEventArgs e)
+        {
+            e.Completed -= OnReceiveCompleted;
+            ((TaskCompletionSource<int>)e.UserToken).TrySetResult(e.BytesTransferred);
+        }
     }
 
     private async Task ReadPipeAsync(Socket socket, PipeReader reader)
@@ -93,19 +111,14 @@ public class PipelineService : IPipelineService
             ReadResult result = await reader.ReadAsync();
             ReadOnlySequence<byte> buffer = result.Buffer;
 
-            if (buffer.Length == 0)
-            {
-                if (result.IsCompleted)
-                    break;
-
-                continue;
-            }
-
-            await ProcessLine(socket, buffer);
-            reader.AdvanceTo(buffer.End);
-
-            if (result.IsCompleted)
+            if (result.IsCompleted && buffer.Length == 0)
                 break;
+
+            if (buffer.Length > 0)
+            {
+                await ProcessLine(socket, buffer);
+                reader.AdvanceTo(buffer.End);
+            }
         }
 
         reader.Complete();
@@ -113,8 +126,17 @@ public class PipelineService : IPipelineService
 
     private async Task ProcessLine(Socket socket, ReadOnlySequence<byte> buffer)
     {
-        byte[] bArray = buffer.ToArray();
-        var loginDecrypt = LoginCryptography.LoginDecrypt(bArray);
-        await _deserializer.Deserialize(Encoding.UTF8.GetString(loginDecrypt), socket);
+        byte[] bArray = _arrayPool.Rent((int)buffer.Length);
+        buffer.CopyTo(bArray);
+
+        try
+        {
+            var loginDecrypt = LoginCryptography.LoginDecrypt(bArray);
+            await _deserializer.Deserialize(Encoding.UTF8.GetString(loginDecrypt, 0, (int)buffer.Length), socket);
+        }
+        finally
+        {
+            _arrayPool.Return(bArray);
+        }
     }
 }
