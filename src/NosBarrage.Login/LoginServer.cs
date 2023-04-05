@@ -18,6 +18,6 @@ public class LoginServer : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        await _pipelineService.StartServer(_loginConfiguration);
+        await _pipelineService.StartAsync(_loginConfiguration);
     }
 }

@@ -1,120 +1,67 @@
-﻿using NosBarrage.Core.Cryptography;
-using NosBarrage.Core.Packets;
-using NosBarrage.Shared.Configuration;
+﻿using NosBarrage.Shared.Configuration;
 using Serilog;
-using System.Buffers;
 using System.IO.Pipelines;
 using System.Net;
 using System.Net.Sockets;
-using System.Reflection;
-using System.Text;
 
 namespace NosBarrage.Core.Pipeline;
 
 public class PipelineService : IPipelineService
 {
-    private PacketDeserializer _deserializer;
+    private readonly Func<Socket, PipeReader, PipeWriter, CancellationToken, ValueTask> _clientConnected;
+    private readonly Func<Socket, ValueTask> _clientDisconnected;
+    private CancellationTokenSource _cts;
     private ILogger _logger;
 
-    public PipelineService(Assembly asm, IServiceProvider serviceProvider, ILogger logger)
+    public PipelineService(ILogger logger,
+        Func<Socket, PipeReader, PipeWriter, CancellationToken, ValueTask> clientConnected,
+        Func<Socket, ValueTask> clientDisconnected)
     {
-        _deserializer = new PacketDeserializer(asm, logger, serviceProvider);
         _logger = logger;
+        _clientConnected = clientConnected;
+        _clientDisconnected = clientDisconnected;
     }
 
-    public async Task StartServer(LoginConfiguration loginConfiguration)
+    public async Task StartAsync(LoginConfiguration configuration, CancellationToken cancellationToken = default)
     {
-        var listenSocket = new Socket(SocketType.Stream, ProtocolType.Tcp);
-        IPAddress address = IPAddress.Parse(loginConfiguration.Address);
-        listenSocket.Bind(new IPEndPoint(address, loginConfiguration.Port));
+        _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
-        _logger.Debug($"Listening on port {loginConfiguration.Port}");
+        using var listener = new Socket(SocketType.Stream, ProtocolType.Tcp);
+        listener.Bind(new IPEndPoint(IPAddress.Any, configuration.Port));
+        listener.Listen(128);
 
-        listenSocket.Listen(120);
+        _logger.Debug($"Server started on port {configuration.Port}");
 
-        while (true)
+        while (!_cts.Token.IsCancellationRequested)
         {
-            var socket = await listenSocket.AcceptAsync();
-            _ = ProcessLinesAsync(socket);
+            var clientSocket = await listener.AcceptAsync();
+            _ = HandleClientAsync(clientSocket, _cts.Token);
         }
     }
 
-    private async Task ProcessLinesAsync(Socket socket)
+    public void Stop()
     {
-        _logger.Debug($"Client connected");
-
-        var pipe = new Pipe();
-        Task writing = FillPipeAsync(socket, pipe.Writer);
-        Task reading = ReadPipeAsync(socket, pipe.Reader);
-
-        await Task.WhenAll(reading, writing);
-
-        _logger.Debug($"Client disconnected");
+        _cts?.Cancel();
     }
 
-    private async Task FillPipeAsync(Socket socket, PipeWriter writer)
+    private async Task HandleClientAsync(Socket clientSocket, CancellationToken cancellationToken)
     {
-        const int minimumBufferSize = 512;
+        using var networkStream = new NetworkStream(clientSocket, ownsSocket: true);
+        var reader = PipeReader.Create(networkStream, new StreamPipeReaderOptions(leaveOpen: true));
+        var writer = PipeWriter.Create(networkStream, new StreamPipeWriterOptions(leaveOpen: true));
 
-        while (true)
+        try
         {
-            try
-            {
-                Memory<byte> memory = writer.GetMemory(minimumBufferSize);
-
-                int bytesRead = await socket.ReceiveAsync(memory, SocketFlags.None);
-                if (bytesRead == 0)
-                {
-                    break;
-                }
-
-                writer.Advance(bytesRead);
-            }
-            catch
-            {
-                break;
-            }
-
-            FlushResult result = await writer.FlushAsync();
-
-            if (result.IsCompleted)
-            {
-                break;
-            }
+            await _clientConnected(clientSocket, reader, writer, cancellationToken);
         }
-
-        writer.Complete();
-    }
-
-    private async Task ReadPipeAsync(Socket socket, PipeReader reader)
-    {
-        while (true)
+        catch (Exception ex)
         {
-            ReadResult result = await reader.ReadAsync();
-            ReadOnlySequence<byte> buffer = result.Buffer;
-
-            if (buffer.Length == 0)
-            {
-                if (result.IsCompleted)
-                    break;
-
-                continue;
-            }
-
-            await ProcessLine(socket, buffer);
-            reader.AdvanceTo(buffer.End);
-
-            if (result.IsCompleted)
-                break;
+            _logger.Error(ex.Message);
         }
-
-        reader.Complete();
-    }
-
-    private async Task ProcessLine(Socket socket, ReadOnlySequence<byte> buffer)
-    {
-        byte[] bArray = buffer.ToArray();
-        var loginDecrypt = LoginCryptography.LoginDecrypt(bArray);
-        await _deserializer.Deserialize(Encoding.UTF8.GetString(loginDecrypt), socket);
+        finally
+        {
+            await reader.CompleteAsync();
+            await writer.CompleteAsync();
+        }
     }
 }
