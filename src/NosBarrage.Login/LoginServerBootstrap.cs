@@ -10,6 +10,8 @@ using NosBarrage.Database;
 using NosBarrage.Database.Services;
 using NosBarrage.PacketHandlers.Login;
 using NosBarrage.Shared.Configuration;
+using System.IO.Pipelines;
+using System.Net.Sockets;
 using System.Reflection;
 using ILogger = Serilog.ILogger;
 
@@ -31,10 +33,25 @@ class LoginServerBootstrap
 
         services.AddSingleton(Logger.GetLogger());
         services.AddScoped(typeof(IDatabaseService<>), typeof(DatabaseService<>));
+        services.AddSingleton<ClientHandler>();
+        services.AddSingleton<Func<Socket, PipeReader, PipeWriter, CancellationToken, ValueTask>>(sp =>
+        {
+            var handler = sp.GetRequiredService<ClientHandler>();
+            return handler.HandleClientConnectedAsync;
+        });
+        services.AddSingleton<Func<Socket, ValueTask>>(sp =>
+        {
+            var handler = sp.GetRequiredService<ClientHandler>();
+            return handler.HandleClientDisconnectedAsync;
+        });
+        services.AddSingleton<IPipelineService, PipelineService>(sp =>
+        {
+            var clientConnected = sp.GetRequiredService<Func<Socket, PipeReader, PipeWriter, CancellationToken, ValueTask>>();
+            var clientDisconnected = sp.GetRequiredService<Func<Socket, ValueTask>>();
+            return new PipelineService(services.BuildServiceProvider().GetRequiredService<ILogger>(), clientConnected, clientDisconnected);
+        });
 
         IServiceProvider serviceProvider = services.BuildServiceProvider();
-        var pipelineService = new PipelineService(Assembly.GetAssembly(typeof(NoS0575PacketHandler))!, serviceProvider, serviceProvider.GetService<ILogger>()!);
-        services.AddSingleton<IPipelineService>(pipelineService);
     }
 
     static IHostBuilder CreateWebHostBuilder(string[] args) =>
