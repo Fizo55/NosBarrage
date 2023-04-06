@@ -54,17 +54,10 @@ class LoginServerBootstrap
             return handler.HandleClientConnectedAsync;
         });
 
-        services.AddSingleton<Func<Socket, ValueTask>>(sp =>
-        {
-            var handler = sp.GetRequiredService<ClientHandler>();
-            return handler.HandleClientDisconnectedAsync;
-        });
-
         services.AddSingleton<IPipelineService, PipelineService>(sp =>
         {
             var clientConnected = sp.GetRequiredService<Func<Socket, PipeReader, PipeWriter, CancellationToken, ValueTask>>();
-            var clientDisconnected = sp.GetRequiredService<Func<Socket, ValueTask>>();
-            return new PipelineService(services.BuildServiceProvider().GetRequiredService<ILogger>(), clientConnected, clientDisconnected);
+            return new PipelineService(services.BuildServiceProvider().GetRequiredService<ILogger>(), clientConnected);
         });
 
         IServiceProvider serviceProvider = services.BuildServiceProvider();

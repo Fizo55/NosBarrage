@@ -9,17 +9,14 @@ namespace NosBarrage.Core.Pipeline;
 public class PipelineService : IPipelineService
 {
     private readonly Func<Socket, PipeReader, PipeWriter, CancellationToken, ValueTask> _clientConnected;
-    private readonly Func<Socket, ValueTask> _clientDisconnected;
     private CancellationTokenSource _cts;
     private ILogger _logger;
 
     public PipelineService(ILogger logger,
-        Func<Socket, PipeReader, PipeWriter, CancellationToken, ValueTask> clientConnected,
-        Func<Socket, ValueTask> clientDisconnected)
+        Func<Socket, PipeReader, PipeWriter, CancellationToken, ValueTask> clientConnected)
     {
         _logger = logger;
         _clientConnected = clientConnected;
-        _clientDisconnected = clientDisconnected;
     }
 
     public async Task StartAsync(LoginConfiguration configuration, CancellationToken cancellationToken = default)
