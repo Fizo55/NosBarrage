@@ -7,6 +7,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="7.0.4" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\NosBarrage.Core\NosBarrage.Core.csproj" />
     <ProjectReference Include="..\NosBarrage.Database\NosBarrage.Database.csproj" />
   </ItemGroup>

@@ -34,23 +34,32 @@ class LoginServerBootstrap
 
         services.AddSingleton(Logger.GetLogger());
         services.AddScoped(typeof(IDatabaseService<>), typeof(DatabaseService<>));
+
+        var type = typeof(NoS0575PacketHandler);
+        var handlerTypes = AppDomain.CurrentDomain.GetAssemblies().SelectMany(s => s.GetTypes()).Where(type.IsAssignableFrom).Where(s => !s.IsInterface);
+        foreach (var handlerType in handlerTypes)
+            services.AddScoped(handlerType);
+
         services.AddSingleton(provider =>
         {
             var assembly = Assembly.GetAssembly(typeof(NoS0575PacketHandler));
             var logger = provider.GetRequiredService<ILogger>();
             return new PacketDeserializer(assembly!, logger, provider);
         });
+
         services.AddSingleton<ClientHandler>();
         services.AddSingleton<Func<Socket, PipeReader, PipeWriter, CancellationToken, ValueTask>>(sp =>
         {
             var handler = sp.GetRequiredService<ClientHandler>();
             return handler.HandleClientConnectedAsync;
         });
+
         services.AddSingleton<Func<Socket, ValueTask>>(sp =>
         {
             var handler = sp.GetRequiredService<ClientHandler>();
             return handler.HandleClientDisconnectedAsync;
         });
+
         services.AddSingleton<IPipelineService, PipelineService>(sp =>
         {
             var clientConnected = sp.GetRequiredService<Func<Socket, PipeReader, PipeWriter, CancellationToken, ValueTask>>();
