@@ -1,8 +1,11 @@
-﻿using NosBarrage.Core.Logger;
+﻿using NosBarrage.Core.Cryptography;
+using NosBarrage.Core.Logger;
 using NosBarrage.Core.Packets;
 using Serilog;
+using System.Buffers;
 using System.IO.Pipelines;
 using System.Net.Sockets;
+using System.Text;
 
 namespace NosBarrage.Login;
 
@@ -33,7 +36,8 @@ public class ClientHandler
                     break;
                 }
 
-                var packet = buffer.ToString(); // TODO : replace it
+                var loginDecrypt = LoginCryptography.LoginDecrypt(buffer.ToArray());
+                var packet = Encoding.UTF8.GetString(loginDecrypt);
                 await _packetDeserializer.DeserializeAsync(packet, socket);
                 reader.AdvanceTo(buffer.Start, buffer.End);
             }

@@ -37,15 +37,6 @@ public class PacketDeserializer
         }
     }
 
-    private Type GetArgumentType(Type handlerType)
-    {
-        var argumentTypes = handlerType.GetInterfaces()
-            .Where(t => t.IsGenericType && t.GetGenericTypeDefinition() == typeof(IPacketHandler<>))
-            .Select(t => t.GetGenericArguments()[0]);
-
-        return argumentTypes.FirstOrDefault()!;
-    }
-
     public async Task DeserializeAsync(string packet, Socket socket)
     {
         var parts = packet.Split(' ', StringSplitOptions.TrimEntries);
@@ -70,7 +61,7 @@ public class PacketDeserializer
             }
             else
             {
-                _logger.Error($"Error (deserialize): no handler found");
+                _logger.Error($"Error (deserialize): no handler found for packet '{command}'");
             }
         }
         else
