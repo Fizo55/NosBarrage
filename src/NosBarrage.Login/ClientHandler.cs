@@ -34,7 +34,7 @@ public class ClientHandler
                 }
 
                 var packet = buffer.ToString(); // TODO : replace it
-                await _packetDeserializer.Deserialize(packet, socket);
+                await _packetDeserializer.DeserializeAsync(packet, socket);
                 reader.AdvanceTo(buffer.Start, buffer.End);
             }
         }
