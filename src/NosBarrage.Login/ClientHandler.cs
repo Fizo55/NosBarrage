@@ -10,6 +10,13 @@ public class ClientHandler
 {
     private static readonly ILogger _logger = Logger.GetLogger();
 
+    private readonly PacketDeserializer _packetDeserializer;
+
+    public ClientHandler(PacketDeserializer packetDeserializer)
+    {
+        _packetDeserializer = packetDeserializer;
+    }
+
     public async ValueTask HandleClientConnectedAsync(Socket socket, PipeReader reader, PipeWriter writer, CancellationToken cancellationToken)
     {
         _logger.Debug("Client connected");
@@ -26,7 +33,8 @@ public class ClientHandler
                     break;
                 }
 
-                // TOOD : Process data
+                var packet = buffer.ToString(); // TODO : replace it
+                await _packetDeserializer.Deserialize(packet, socket);
                 reader.AdvanceTo(buffer.Start, buffer.End);
             }
         }

@@ -1,8 +1,6 @@
 ﻿using Autofac;
 using Serilog;
-using System;
 using System.Collections.Concurrent;
-using System.Linq.Expressions;
 using System.Net.Sockets;
 using System.Reflection;
 
@@ -10,8 +8,7 @@ namespace NosBarrage.Core.Packets;
 
 public class PacketDeserializer
 {
-    private readonly ConcurrentDictionary<string, Delegate> _handlerFactories = new();
-    private readonly ConcurrentDictionary<string, Type> _argumentTypes = new();
+    private readonly ConcurrentDictionary<string, (Type handlerType, Type argumentType)> _handlerMappings = new();
     private readonly ILogger _logger;
     private readonly IServiceProvider _serviceProvider;
 
@@ -26,34 +23,18 @@ public class PacketDeserializer
     {
         var handlerTypes = assembly.GetTypes()
             .Where(t => t.GetInterfaces().Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IPacketHandler<>)))
-            .Where(t => t.GetCustomAttributes(typeof(PacketHandlerAttribute), false).Length > 0);
+            .Where(t => t.GetCustomAttribute<PacketHandlerAttribute>() is not null);
 
         foreach (var handlerType in handlerTypes)
         {
-            var attribute = (PacketHandlerAttribute)handlerType.GetCustomAttribute(typeof(PacketHandlerAttribute), false)!;
-            var constructor = handlerType.GetConstructors().FirstOrDefault();
-            if (constructor == null)
-                continue;
+            var attribute = handlerType.GetCustomAttribute<PacketHandlerAttribute>();
+            var argumentType = handlerType.GetInterfaces()
+                .FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IPacketHandler<>))?
+                .GetGenericArguments()[0];
 
-            var argumentType = GetArgumentType(handlerType);
-            var handlerFactory = CreateHandlerFactory(constructor);
-
-            _handlerFactories[attribute.PacketName] = handlerFactory;
-            _argumentTypes[attribute.PacketName] = argumentType;
+            if (argumentType != null)
+                _handlerMappings[attribute.PacketName] = (handlerType, argumentType);
         }
-    }
-
-    private Delegate CreateHandlerFactory(ConstructorInfo constructor)
-    {
-        var serviceProviderParam = Expression.Parameter(typeof(IServiceProvider), "serviceProvider");
-        var constructorParams = constructor.GetParameters().Select(param =>
-        {
-            var getServiceCall = Expression.Call(serviceProviderParam, "GetService", null, Expression.Constant(param.ParameterType));
-            return Expression.Convert(getServiceCall, param.ParameterType);
-        }).ToArray();
-        var newExp = Expression.New(constructor, constructorParams);
-        var lambda = Expression.Lambda(typeof(Func<IServiceProvider, object>), newExp, serviceProviderParam).Compile();
-        return lambda;
     }
 
     private Type GetArgumentType(Type handlerType)
@@ -65,37 +46,58 @@ public class PacketDeserializer
         return argumentTypes.FirstOrDefault()!;
     }
 
-    public async Task Deserialize(string packet, Socket socket)
+    public async Task DeserializeAsync(string packet, Socket socket)
     {
-        var parts = packet.Split(' ');
+        var parts = packet.Split(' ', StringSplitOptions.TrimEntries);
         var command = parts[0];
 
-        if (_handlerFactories.TryGetValue(command, out var handlerFactory) && _argumentTypes.TryGetValue(command, out var argumentType))
+        if (_handlerMappings.TryGetValue(command, out var handlerMapping))
         {
-            var handler = ((Func<IServiceProvider, object>)handlerFactory)(_serviceProvider);
-            var args = DeserializeArguments(parts.Skip(1).ToArray(), argumentType);
-            var method = handler.GetType().GetMethod("HandleAsync")!;
-            await (Task)method.Invoke(handler, new object[] { args!, socket });
-            return;
-        }
+            var handler = _serviceProvider.GetService(handlerMapping.handlerType);
+            if (handler != null)
+            {
+                var args = DeserializeArguments(parts[1..], handlerMapping.argumentType);
 
-        _logger.Error("error (deserialize) : packet handlers wasn't found");
+                if (args is not null)
+                {
+                    var handleAsyncMethod = handlerMapping.handlerType.GetMethod("HandleAsync");
+                    await (Task)handleAsyncMethod.Invoke(handler, new[] { args, socket });
+                }
+                else
+                {
+                    _logger.Error($"Error (deserialize): failed to deserialize arguments for packet '{command}'.");
+                }
+            }
+            else
+            {
+                _logger.Error($"Error (deserialize): no handler found");
+            }
+        }
+        else
+        {
+            _logger.Error($"Error (deserialize): packet handler for '{command}' not found.");
+        }
     }
 
     private object? DeserializeArguments(string[] parts, Type argumentType)
     {
-        var constructor = argumentType.GetConstructors()[0];
-        var constructorParameters = constructor.GetParameters();
-
-        if (constructorParameters.Length != parts.Length)
+        var constructor = argumentType.GetConstructors().FirstOrDefault();
+        if (constructor == null)
         {
-            _logger.Error("error (deserialize_arguments): outdated packet");
+            _logger.Error($"Error (deserialize_arguments): no constructor found for '{argumentType.Name}'.");
             return null;
         }
 
-        var arguments = new object[constructorParameters.Length];
-        for (int i = 0; i < constructorParameters.Length; i++)
-            arguments[i] = Convert.ChangeType(parts[i], constructorParameters[i].ParameterType);
+        var constructorParameters = constructor.GetParameters();
+        if (constructorParameters.Length != parts.Length)
+        {
+            _logger.Error($"Error (deserialize_arguments): incorrect number of arguments for '{argumentType.Name}'.");
+            return null;
+        }
+
+        var arguments = constructorParameters
+            .Select((param, index) => Convert.ChangeType(parts[index], param.ParameterType))
+            .ToArray();
 
         return constructor.Invoke(arguments);
     }

@@ -8,11 +8,9 @@ using NosBarrage.Core.Logger;
 using NosBarrage.Core.Pipeline;
 using NosBarrage.Database;
 using NosBarrage.Database.Services;
-using NosBarrage.PacketHandlers.Login;
 using NosBarrage.Shared.Configuration;
 using System.IO.Pipelines;
 using System.Net.Sockets;
-using System.Reflection;
 using ILogger = Serilog.ILogger;
 
 namespace NosBarrage.Login;
