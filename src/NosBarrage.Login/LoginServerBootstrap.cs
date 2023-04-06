@@ -5,12 +5,15 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NosBarrage.Core.Logger;
+using NosBarrage.Core.Packets;
 using NosBarrage.Core.Pipeline;
 using NosBarrage.Database;
 using NosBarrage.Database.Services;
+using NosBarrage.PacketHandlers.Login;
 using NosBarrage.Shared.Configuration;
 using System.IO.Pipelines;
 using System.Net.Sockets;
+using System.Reflection;
 using ILogger = Serilog.ILogger;
 
 namespace NosBarrage.Login;
@@ -31,6 +34,12 @@ class LoginServerBootstrap
 
         services.AddSingleton(Logger.GetLogger());
         services.AddScoped(typeof(IDatabaseService<>), typeof(DatabaseService<>));
+        services.AddSingleton(provider =>
+        {
+            var assembly = Assembly.GetAssembly(typeof(NoS0575PacketHandler));
+            var logger = provider.GetRequiredService<ILogger>();
+            return new PacketDeserializer(assembly!, logger, provider);
+        });
         services.AddSingleton<ClientHandler>();
         services.AddSingleton<Func<Socket, PipeReader, PipeWriter, CancellationToken, ValueTask>>(sp =>
         {
