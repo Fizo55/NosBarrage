@@ -8,7 +8,7 @@ namespace NosBarrage.Core.Packets;
 
 public class PacketDeserializer
 {
-    private readonly ConcurrentDictionary<string, (Type handlerType, Type argumentType)> _handlerMappings = new();
+    private readonly ConcurrentDictionary<string, (Type handlerType, Type argumentType, ConstructorInfo constructor, MethodInfo handleAsyncMethod)> _handlerMappings = new();
     private readonly ILogger _logger;
     private readonly IServiceProvider _serviceProvider;
 
@@ -33,26 +33,32 @@ public class PacketDeserializer
                 .GetGenericArguments()[0];
 
             if (argumentType != null)
-                _handlerMappings[attribute.PacketName] = (handlerType, argumentType);
+            {
+                var constructor = argumentType.GetConstructors().FirstOrDefault();
+                var handleAsyncMethod = handlerType.GetMethod("HandleAsync");
+                _handlerMappings[attribute.PacketName] = (handlerType, argumentType, constructor, handleAsyncMethod);
+            }
         }
     }
 
     public async Task DeserializeAsync(string packet, Socket socket)
     {
-        var parts = packet.Split(' ', StringSplitOptions.TrimEntries);
-        var command = parts[0];
+        var packetMemory = packet.AsMemory();
+        var spaceIndex = packetMemory.Span.IndexOf(' ');
+
+        var command = spaceIndex >= 0 ? packetMemory[..spaceIndex].ToString() : packet;
+        var arguments = spaceIndex >= 0 ? packetMemory[(spaceIndex + 1)..] : Memory<char>.Empty;
 
         if (_handlerMappings.TryGetValue(command, out var handlerMapping))
         {
             var handler = _serviceProvider.GetService(handlerMapping.handlerType);
             if (handler != null)
             {
-                var args = DeserializeArguments(parts[1..], handlerMapping.argumentType);
+                var args = DeserializeArguments(arguments, handlerMapping.argumentType, handlerMapping.constructor);
 
                 if (args is not null)
                 {
-                    var handleAsyncMethod = handlerMapping.handlerType.GetMethod("HandleAsync");
-                    await (Task)handleAsyncMethod.Invoke(handler, new[] { args, socket });
+                    await (Task)handlerMapping.handleAsyncMethod.Invoke(handler, new[] { args, socket });
                 }
                 else
                 {
@@ -70,9 +76,8 @@ public class PacketDeserializer
         }
     }
 
-    private object? DeserializeArguments(string[] parts, Type argumentType)
+    private object? DeserializeArguments(ReadOnlyMemory<char> argumentsMemory, Type argumentType, ConstructorInfo constructor)
     {
-        var constructor = argumentType.GetConstructors().FirstOrDefault();
         if (constructor == null)
         {
             _logger.Error($"Error (deserialize_arguments): no constructor found for '{argumentType.Name}'.");
@@ -80,6 +85,8 @@ public class PacketDeserializer
         }
 
         var constructorParameters = constructor.GetParameters();
+        var parts = argumentsMemory.ToString().Split(' ', StringSplitOptions.TrimEntries);
+
         if (constructorParameters.Length != parts.Length)
         {
             _logger.Error($"Error (deserialize_arguments): incorrect number of arguments for '{argumentType.Name}'.");
