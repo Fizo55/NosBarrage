@@ -2,18 +2,6 @@
 {
     public class NoS0575PacketArgs
     {
-        public NoS0575PacketArgs(int sessionId, string? name, string? password, string? clientId, string? unknown, string? regionType, string? clientVersion, string? md5String)
-        {
-            SessionId = sessionId;
-            Name = name;
-            Password = password;
-            ClientId = clientId;
-            Unknown = unknown;
-            RegionType = regionType;
-            ClientVersion = clientVersion;
-            Md5String = md5String;
-        }
-
         public int SessionId { get; set; }
 
         public string? Name { get; set; }

@@ -1,6 +1,8 @@
 ﻿using Autofac;
+using Microsoft.Extensions.Primitives;
 using Serilog;
-using System.Collections.Concurrent;
+using System.Buffers;
+using System.Linq.Expressions;
 using System.Net.Sockets;
 using System.Reflection;
 
@@ -8,7 +10,7 @@ namespace NosBarrage.Core.Packets;
 
 public class PacketDeserializer
 {
-    private readonly ConcurrentDictionary<string, (Type handlerType, Type argumentType, ConstructorInfo constructor, MethodInfo handleAsyncMethod)> _handlerMappings = new();
+    private readonly Dictionary<string, (Type handlerType, Type argumentType, Func<object[], object> constructor, Func<object, object, Socket, Task> handleAsyncMethod)> _handlerMappings = new();
     private readonly ILogger _logger;
     private readonly IServiceProvider _serviceProvider;
 
@@ -21,44 +23,53 @@ public class PacketDeserializer
 
     private void LoadPacketHandlers(Assembly assembly)
     {
-        var handlerTypes = assembly.GetTypes()
-            .Where(t => t.GetInterfaces().Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IPacketHandler<>)))
-            .Where(t => t.GetCustomAttribute<PacketHandlerAttribute>() is not null);
+        var handlerTypes = assembly.GetTypes();
 
         foreach (var handlerType in handlerTypes)
         {
+            var interfaces = handlerType.GetInterfaces();
             var attribute = handlerType.GetCustomAttribute<PacketHandlerAttribute>();
-            var argumentType = handlerType.GetInterfaces()
-                .FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IPacketHandler<>))?
-                .GetGenericArguments()[0];
 
-            if (argumentType != null)
+            if (attribute != null && interfaces.Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IPacketHandler<>)))
             {
-                var constructor = argumentType.GetConstructors().FirstOrDefault();
-                var handleAsyncMethod = handlerType.GetMethod("HandleAsync");
-                _handlerMappings[attribute.PacketName] = (handlerType, argumentType, constructor, handleAsyncMethod);
+                var argumentType = handlerType.GetInterfaces()
+                    .FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IPacketHandler<>))?
+                    .GetGenericArguments()[0];
+
+                if (argumentType != null)
+                {
+                    var constructor = argumentType.GetConstructors().FirstOrDefault();
+                    var objectArrayParameter = Expression.Parameter(typeof(object[]));
+                    var constructorParameters = constructor.GetParameters().Select((p, i) => Expression.Convert(Expression.ArrayIndex(objectArrayParameter, Expression.Constant(i)), p.ParameterType)).ToArray();
+                    var constructorLambda = Expression.Lambda<Func<object[], object>>(Expression.New(constructor, constructorParameters), objectArrayParameter).Compile();
+
+                    var handleAsyncMethod = handlerType.GetMethod("HandleAsync");
+                    var handlerParameter = Expression.Parameter(typeof(object));
+                    var argsParameter = Expression.Parameter(typeof(object));
+                    var socketParameter = Expression.Parameter(typeof(Socket));
+                    var handleAsyncLambda = Expression.Lambda<Func<object, object, Socket, Task>>(Expression.Call(Expression.Convert(handlerParameter, handlerType), handleAsyncMethod, Expression.Convert(argsParameter, argumentType), socketParameter), handlerParameter, argsParameter, socketParameter).Compile();
+
+                    _handlerMappings[attribute.PacketName] = (handlerType, argumentType, constructorLambda, handleAsyncLambda);
+                }
             }
         }
     }
 
     public async Task DeserializeAsync(string packet, Socket socket)
     {
-        var packetMemory = packet.AsMemory();
-        var spaceIndex = packetMemory.Span.IndexOf(' ');
-
-        var command = spaceIndex >= 0 ? packetMemory[..spaceIndex].ToString() : packet;
-        var arguments = spaceIndex >= 0 ? packetMemory[(spaceIndex + 1)..] : Memory<char>.Empty;
+        var commandEnd = packet.IndexOf(' ');
+        var command = commandEnd >= 0 ? packet[..commandEnd] : packet;
 
         if (_handlerMappings.TryGetValue(command, out var handlerMapping))
         {
             var handler = _serviceProvider.GetService(handlerMapping.handlerType);
             if (handler != null)
             {
-                var args = DeserializeArguments(arguments, handlerMapping.argumentType, handlerMapping.constructor);
+                var args = DeserializeArguments(packet.AsSpan(commandEnd + 1), handlerMapping.argumentType, handlerMapping.constructor);
 
                 if (args is not null)
                 {
-                    await (Task)handlerMapping.handleAsyncMethod.Invoke(handler, new[] { args, socket });
+                    await handlerMapping.handleAsyncMethod(handler, args, socket);
                 }
                 else
                 {
@@ -76,27 +87,30 @@ public class PacketDeserializer
         }
     }
 
-    private object? DeserializeArguments(ReadOnlyMemory<char> argumentsMemory, Type argumentType, ConstructorInfo constructor)
+    private object? DeserializeArguments(ReadOnlySpan<char> arguments, Type argumentType, Func<object[], object> constructor)
     {
-        if (constructor == null)
+        var properties = argumentType.GetProperties();
+        var parts = new List<StringSegment>();
+
+        int startIndex = 0;
+        for (int i = 0; i < arguments.Length; i++)
         {
-            _logger.Error($"Error (deserialize_arguments): no constructor found for '{argumentType.Name}'.");
-            return null;
+            if (arguments[i] == ' ')
+            {
+                parts.Add(new StringSegment(arguments[startIndex..i].ToString()));
+                startIndex = i + 1;
+            }
+        }
+        if (startIndex < arguments.Length)
+        {
+            parts.Add(new StringSegment(arguments[startIndex..].ToString()));
         }
 
-        var constructorParameters = constructor.GetParameters();
-        var parts = argumentsMemory.ToString().Split(' ', StringSplitOptions.TrimEntries);
+        var instance = Activator.CreateInstance(argumentType);
 
-        if (constructorParameters.Length != parts.Length)
-        {
-            _logger.Error($"Error (deserialize_arguments): incorrect number of arguments for '{argumentType.Name}'.");
-            return null;
-        }
+        for (int i = 0; i < properties.Length; i++)
+            properties[i]?.SetValue(instance, Convert.ChangeType(parts[i].ToString(), properties[i].PropertyType));
 
-        var arguments = constructorParameters
-            .Select((param, index) => Convert.ChangeType(parts[index], param.ParameterType))
-            .ToArray();
-
-        return constructor.Invoke(arguments);
+        return instance;
     }
 }
