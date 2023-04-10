@@ -106,7 +106,7 @@ public class PacketDeserializer
             parts.Add(new StringSegment(arguments[startIndex..].ToString()));
         }
 
-        var instance = constructor(new object[0]);
+        var instance = constructor(Array.Empty<object>());
 
         for (int i = 0; i < properties.Length; i++)
             properties[i]?.SetValue(instance, Convert.ChangeType(parts[i].ToString(), properties[i].PropertyType));
