@@ -1,6 +1,4 @@
-﻿using System.Linq;
-
-namespace NosBarrage.Core.Cryptography;
+﻿namespace NosBarrage.Core.Cryptography;
 
 public static class LoginCryptography
 {
