@@ -47,18 +47,7 @@ class LoginServerBootstrap
             return new PacketDeserializer(assembly!, logger, provider);
         });
 
-        services.AddSingleton<ClientHandler>();
-        services.AddSingleton<Func<Socket, PipeReader, PipeWriter, CancellationToken, ValueTask>>(sp =>
-        {
-            var handler = sp.GetRequiredService<ClientHandler>();
-            return handler.HandleClientConnectedAsync;
-        });
-
-        services.AddSingleton<IPipelineService, PipelineService>(sp =>
-        {
-            var clientConnected = sp.GetRequiredService<Func<Socket, PipeReader, PipeWriter, CancellationToken, ValueTask>>();
-            return new PipelineService(services.BuildServiceProvider().GetRequiredService<ILogger>(), clientConnected);
-        });
+        services.AddSingleton<IPipelineService, PipelineService>();
 
         IServiceProvider serviceProvider = services.BuildServiceProvider();
     }
