@@ -1,32 +1,34 @@
-﻿namespace NosBarrage.Core.Cryptography;
+﻿using System.Linq;
 
-public class LoginCryptography
+namespace NosBarrage.Core.Cryptography;
+
+public static class LoginCryptography
 {
-    public static byte[] LoginEncrypt(byte[] packet)
+    private const byte EncryptionKey = 0xC3;
+    private const byte EncryptionOffset = 0xF;
+
+    public static byte[] LoginEncrypt(ReadOnlySpan<byte> packet)
     {
         if (packet[^1] != 0xA)
-            packet = packet.Concat("\n"u8.ToArray()).ToArray();
+            packet = packet.ToArray().Append((byte)'\n').ToArray();
 
         byte[] output = new byte[packet.Length];
         for (int i = 0; i < packet.Length; i++)
         {
             byte b = packet[i];
-            byte v = (byte)(((b ^ 0xC3) + 0xF) & 0xFF);
-            output[i] = v;
+            output[i] = (byte)(((b ^ EncryptionKey) + EncryptionOffset) & 0xFF);
         }
 
         return output;
     }
 
-    public static byte[] LoginDecrypt(byte[] packet)
+    public static byte[] LoginDecrypt(ReadOnlySpan<byte> packet)
     {
         byte[] output = new byte[packet.Length];
-
         for (int i = 0; i < packet.Length; i++)
         {
             byte b = packet[i];
-            byte v = (byte)((b - 0xF) ^ 0xC3);
-            output[i] = (byte)(v & 0xFF);
+            output[i] = (byte)(((b - EncryptionOffset) ^ EncryptionKey) & 0xFF);
         }
 
         return output;
