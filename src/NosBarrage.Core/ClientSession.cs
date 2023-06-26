@@ -12,11 +12,13 @@ public class ClientSession
 {
     private readonly Socket _clientSocket;
     private readonly ILogger _logger;
+    private readonly PacketDeserializer _packetDeserializer;
 
-    public ClientSession(Socket clientSocket, ILogger logger)
+    public ClientSession(Socket clientSocket, ILogger logger, PacketDeserializer packetDeserializer)
     {
         _clientSocket = clientSocket;
         _logger = logger;
+        _packetDeserializer = packetDeserializer;
     }
 
     public async ValueTask HandleClientConnectedAsync(Socket socket, PipeReader reader, CancellationToken cancellationToken)
@@ -37,7 +39,7 @@ public class ClientSession
 
                 var loginDecrypt = LoginCryptography.LoginDecrypt(buffer.ToArray());
                 var packet = Encoding.UTF8.GetString(loginDecrypt);
-                //await _packetDeserializer.DeserializeAsync(packet, socket);
+                await _packetDeserializer.DeserializeAsync(packet, socket);
                 reader.AdvanceTo(buffer.Start, buffer.End);
             }
         }

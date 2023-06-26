@@ -1,21 +1,21 @@
-﻿using NosBarrage.Core.Cryptography;
+﻿using NosBarrage.Core.Packets;
 using NosBarrage.Shared.Configuration;
 using Serilog;
-using System.IO.Pipelines;
 using System.Net;
 using System.Net.Sockets;
-using System.Text;
 
 namespace NosBarrage.Core.Pipeline;
 
 public class PipelineService : IPipelineService
 {
     private readonly ILogger _logger;
-    private CancellationTokenSource _cts;
+    private readonly PacketDeserializer _packetDeserializer;
+    private CancellationTokenSource _cts = null!;
 
-    public PipelineService(ILogger logger)
+    public PipelineService(ILogger logger, PacketDeserializer packetDeserializer)
     {
         _logger = logger;
+        _packetDeserializer = packetDeserializer;
     }
 
     public async Task StartAsync(LoginConfiguration configuration, CancellationToken cancellationToken = default)
@@ -30,8 +30,8 @@ public class PipelineService : IPipelineService
 
         while (!_cts.Token.IsCancellationRequested)
         {
-            var clientSocket = await listener.AcceptAsync();
-            var session = new ClientSession(clientSocket, _logger);
+            var clientSocket = await listener.AcceptAsync(cancellationToken);
+            var session = new ClientSession(clientSocket, _logger, _packetDeserializer);
             _ = session.HandleClientAsync(_cts.Token);
         }
     }
