@@ -1,9 +1,9 @@
-﻿using NosBarrage.Core.Packets;
+﻿using NosBarrage.Core;
+using NosBarrage.Core.Packets;
 using NosBarrage.Database.Services;
 using NosBarrage.Shared.Args.Login;
 using NosBarrage.Shared.Entities;
 using Serilog;
-using System.Net.Sockets;
 
 namespace NosBarrage.PacketHandlers.Login;
 
@@ -19,8 +19,9 @@ public class NoS0575PacketHandler : IPacketHandler<NoS0575PacketArgs>
         _accountEntity = accountEntity;
     }
 
-    public async Task HandleAsync(NoS0575PacketArgs args, Socket socket)
+    public async Task HandleAsync(NoS0575PacketArgs args, ClientSession session)
     {
+        await session.SendPacket("info test");
         bool exist = await _accountEntity.AnyAsync(s => s.Password == args.Password!.ToLower() && s.Username == args.Name);
         if (!exist)
         {

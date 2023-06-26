@@ -13,12 +13,16 @@ public class ClientSession
     private readonly Socket _clientSocket;
     private readonly ILogger _logger;
     private readonly PacketDeserializer _packetDeserializer;
+    private NetworkStream _networkStream;
+    private PipeWriter _writer;
 
     public ClientSession(Socket clientSocket, ILogger logger, PacketDeserializer packetDeserializer)
     {
         _clientSocket = clientSocket;
         _logger = logger;
         _packetDeserializer = packetDeserializer;
+        _networkStream = new NetworkStream(_clientSocket, ownsSocket: true);
+        _writer = PipeWriter.Create(_networkStream, new StreamPipeWriterOptions(leaveOpen: true));
     }
 
     public async ValueTask HandleClientConnectedAsync(Socket socket, PipeReader reader, CancellationToken cancellationToken)
@@ -39,7 +43,7 @@ public class ClientSession
 
                 var loginDecrypt = LoginCryptography.LoginDecrypt(buffer.ToArray());
                 var packet = Encoding.UTF8.GetString(loginDecrypt);
-                await _packetDeserializer.DeserializeAsync(packet, socket);
+                await _packetDeserializer.DeserializeAsync(packet, this);
                 reader.AdvanceTo(buffer.Start, buffer.End);
             }
         }
@@ -81,11 +85,21 @@ public class ClientSession
         }
     }
 
-    public async Task SendPacket(string packet)
+    public async ValueTask SendPacket(string packet)
     {
         byte[] packetBytes = Encoding.UTF8.GetBytes(packet);
         byte[] encodedBytes = LoginCryptography.LoginEncrypt(packetBytes);
 
-        await _clientSocket.SendAsync(encodedBytes, SocketFlags.None);
+        var buffer = _writer.GetMemory(encodedBytes.Length);
+        encodedBytes.CopyTo(buffer.Span);
+
+        _writer.Advance(encodedBytes.Length);
+
+        var flushResult = await _writer.FlushAsync();
+
+        if (!flushResult.IsCompleted || flushResult.IsCanceled)
+        {
+            _logger.Error("Failed to send data, connection was closed.");
+        }
     }
 }

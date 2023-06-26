@@ -1,5 +1,4 @@
-﻿using Autofac;
-using Microsoft.Extensions.Primitives;
+﻿using Microsoft.Extensions.Primitives;
 using Serilog;
 using System.Buffers;
 using System.Linq.Expressions;
@@ -10,7 +9,7 @@ namespace NosBarrage.Core.Packets;
 
 public class PacketDeserializer
 {
-    private readonly Dictionary<string, (Type handlerType, Type argumentType, Func<object[], object> constructor, Func<object, object, Socket, Task> handleAsyncMethod)> _handlerMappings = new();
+    private readonly Dictionary<string, (Type handlerType, Type argumentType, Func<object[], object> constructor, Func<object, object, ClientSession, Task> handleAsyncMethod)> _handlerMappings = new();
     private readonly ILogger _logger;
     private readonly IServiceProvider _serviceProvider;
 
@@ -46,8 +45,8 @@ public class PacketDeserializer
                     var handleAsyncMethod = handlerType.GetMethod("HandleAsync");
                     var handlerParameter = Expression.Parameter(typeof(object));
                     var argsParameter = Expression.Parameter(typeof(object));
-                    var socketParameter = Expression.Parameter(typeof(Socket));
-                    var handleAsyncLambda = Expression.Lambda<Func<object, object, Socket, Task>>(Expression.Call(Expression.Convert(handlerParameter, handlerType), handleAsyncMethod, Expression.Convert(argsParameter, argumentType), socketParameter), handlerParameter, argsParameter, socketParameter).Compile();
+                    var clientSessionParameter = Expression.Parameter(typeof(ClientSession));
+                    var handleAsyncLambda = Expression.Lambda<Func<object, object, ClientSession, Task>>(Expression.Call(Expression.Convert(handlerParameter, handlerType), handleAsyncMethod, Expression.Convert(argsParameter, argumentType), clientSessionParameter), handlerParameter, argsParameter, clientSessionParameter).Compile();
 
                     _handlerMappings[attribute.PacketName] = (handlerType, argumentType, constructorLambda, handleAsyncLambda);
                 }
@@ -55,7 +54,7 @@ public class PacketDeserializer
         }
     }
 
-    public async Task DeserializeAsync(string packet, Socket socket)
+    public async Task DeserializeAsync(string packet, ClientSession session)
     {
         var commandEnd = packet.IndexOf(' ');
         var command = commandEnd >= 0 ? packet[..commandEnd] : packet;
@@ -69,7 +68,7 @@ public class PacketDeserializer
 
                 if (args is not null)
                 {
-                    await handlerMapping.handleAsyncMethod(handler, args, socket);
+                    await handlerMapping.handleAsyncMethod(handler, args, session);
                 }
                 else
                 {
