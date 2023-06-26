@@ -21,15 +21,15 @@ public class NoS0575PacketHandler : IPacketHandler<NoS0575PacketArgs>
 
     public async Task HandleAsync(NoS0575PacketArgs args, ClientSession session)
     {
-        await session.SendPacket("info test");
+        // todo : check if already connected but idc for now
         bool exist = await _accountEntity.AnyAsync(s => s.Password == args.Password!.ToLower() && s.Username == args.Name);
         if (!exist)
         {
-            // FIXME: Send message to client
+            await session.SendPacketAsync("failc 5");
             return;
         }
 
-        // FIXME: Send channel packet to client
+        await session.SendPacketAsync("NsTeST 0 admin 2 -99 0 -99 0 -99 0 -99 0 -99 0 -99 0 -99 0 -99 0 -99 0 -99 0 -99 0 -99 0 -99 0 -99 0 -99 0 -99 0 -99 0 -99 0 -99 0 -99 0 -99 0 -99 0 -99 0 -99 0 -99 0 -99 0 -99 0 -99 0 -99 0 -99 0 -99 0 -99 0 -99 0 -99 0 -99 0 -99 0 0 123 127.0.0.1:1337:0:1.1.ILoveYou<3 -1:-1:-1:10000.10000.1");
         _logger.Debug($"[Player: {args.Name}] Logged in");
     }
 }

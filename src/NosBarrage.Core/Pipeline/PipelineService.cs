@@ -22,17 +22,16 @@ public class PipelineService : IPipelineService
     {
         _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
-        using var listener = new Socket(SocketType.Stream, ProtocolType.Tcp);
-        listener.Bind(new IPEndPoint(IPAddress.Any, configuration.Port));
-        listener.Listen(128);
+        var listener = new TcpListener(IPAddress.Any, configuration.Port);
+        listener.Start();
 
         _logger.Debug($"Server started on port {configuration.Port}");
 
         while (!_cts.Token.IsCancellationRequested)
         {
-            var clientSocket = await listener.AcceptAsync(cancellationToken);
-            var session = new ClientSession(clientSocket, _logger, _packetDeserializer);
-            _ = session.HandleClientAsync(_cts.Token);
+            var client = await listener.AcceptTcpClientAsync();
+            var session = new ClientSession(client, _logger, _packetDeserializer);
+            _ = session.StartSessionAsync(_cts.Token);
         }
     }
 

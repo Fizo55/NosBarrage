@@ -1,105 +1,80 @@
 ﻿using NosBarrage.Core.Cryptography;
 using NosBarrage.Core.Packets;
 using Serilog;
-using System.Buffers;
-using System.IO.Pipelines;
 using System.Net.Sockets;
 using System.Text;
 
-namespace NosBarrage.Core;
-
-public class ClientSession
+namespace NosBarrage.Core
 {
-    private readonly Socket _clientSocket;
-    private readonly ILogger _logger;
-    private readonly PacketDeserializer _packetDeserializer;
-    private NetworkStream _networkStream;
-    private PipeWriter _writer;
-
-    public ClientSession(Socket clientSocket, ILogger logger, PacketDeserializer packetDeserializer)
+    public class ClientSession : IDisposable
     {
-        _clientSocket = clientSocket;
-        _logger = logger;
-        _packetDeserializer = packetDeserializer;
-        _networkStream = new NetworkStream(_clientSocket, ownsSocket: true);
-        _writer = PipeWriter.Create(_networkStream, new StreamPipeWriterOptions(leaveOpen: true));
-    }
+        private readonly TcpClient _client;
+        private readonly ILogger _logger;
+        private readonly PacketDeserializer _packetDeserializer;
+        private NetworkStream _stream;
+        private CancellationTokenSource _cts;
 
-    public async ValueTask HandleClientConnectedAsync(Socket socket, PipeReader reader, CancellationToken cancellationToken)
-    {
-        _logger.Debug("Client connected");
-        try
+        public ClientSession(TcpClient client, ILogger logger, PacketDeserializer packetDeserializer)
         {
-            while (!cancellationToken.IsCancellationRequested)
+            _client = client;
+            _logger = logger;
+            _packetDeserializer = packetDeserializer;
+            _stream = client.GetStream();
+        }
+
+        public async Task StartSessionAsync(CancellationToken cancellationToken)
+        {
+            _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+
+            try
             {
-                var result = await reader.ReadAsync(cancellationToken);
-                var buffer = result.Buffer;
-
-                if (result.IsCompleted)
-                {
-                    await HandleClientDisconnectedAsync(socket);
-                    break;
-                }
-
-                var loginDecrypt = LoginCryptography.LoginDecrypt(buffer.ToArray());
-                var packet = Encoding.UTF8.GetString(loginDecrypt);
-                await _packetDeserializer.DeserializeAsync(packet, this);
-                reader.AdvanceTo(buffer.Start, buffer.End);
+                _logger.Debug("Client connected");
+                var receiveTask = ReceivePacketsAsync(_cts.Token);
+                await Task.WhenAny(receiveTask);
+            }
+            catch (Exception ex)
+            {
+                _logger.Error($"An error occurred: {ex.Message}");
+            }
+            finally
+            {
+                _logger.Debug("Client disconnected");
+                Dispose();
             }
         }
-        catch (OperationCanceledException)
+
+        private async Task ReceivePacketsAsync(CancellationToken cancellationToken)
         {
-            // we don't care
+            var buffer = new byte[1024];
+
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                var bytesRead = await _stream.ReadAsync(buffer, 0, buffer.Length, cancellationToken);
+
+                if (bytesRead == 0)
+                    break;
+
+                var decryptedData = LoginCryptography.LoginDecrypt(buffer.AsSpan(0, bytesRead).ToArray());
+                var packet = Encoding.UTF8.GetString(decryptedData);
+
+                await _packetDeserializer.DeserializeAsync(packet, this);
+            }
         }
-        finally
+
+        public async Task SendPacketAsync(string packet)
         {
-            reader.Complete();
+            var packetBytes = Encoding.UTF8.GetBytes(packet);
+            var encryptedPacketBytes = LoginCryptography.LoginEncrypt(packetBytes);
+
+            await _stream.WriteAsync(encryptedPacketBytes, 0, encryptedPacketBytes.Length);
+            await _stream.FlushAsync();
         }
-    }
 
-    public ValueTask HandleClientDisconnectedAsync(Socket socket)
-    {
-        _logger.Debug("Client disconnected");
-        socket.Close();
-        return ValueTask.CompletedTask;
-    }
-
-    public async Task HandleClientAsync(CancellationToken token)
-    {
-        using var networkStream = new NetworkStream(_clientSocket, ownsSocket: true);
-        var reader = PipeReader.Create(networkStream, new StreamPipeReaderOptions(leaveOpen: true));
-        var writer = PipeWriter.Create(networkStream, new StreamPipeWriterOptions(leaveOpen: true));
-
-        try
+        public void Dispose()
         {
-            await HandleClientConnectedAsync(_clientSocket, reader, token);
-        }
-        catch (Exception ex)
-        {
-            _logger.Error(ex.Message);
-        }
-        finally
-        {
-            await reader.CompleteAsync();
-            await writer.CompleteAsync();
-        }
-    }
-
-    public async ValueTask SendPacket(string packet)
-    {
-        byte[] packetBytes = Encoding.UTF8.GetBytes(packet);
-        byte[] encodedBytes = LoginCryptography.LoginEncrypt(packetBytes);
-
-        var buffer = _writer.GetMemory(encodedBytes.Length);
-        encodedBytes.CopyTo(buffer.Span);
-
-        _writer.Advance(encodedBytes.Length);
-
-        var flushResult = await _writer.FlushAsync();
-
-        if (!flushResult.IsCompleted || flushResult.IsCanceled)
-        {
-            _logger.Error("Failed to send data, connection was closed.");
+            _stream?.Dispose();
+            _client?.Dispose();
+            _cts?.Dispose();
         }
     }
 }

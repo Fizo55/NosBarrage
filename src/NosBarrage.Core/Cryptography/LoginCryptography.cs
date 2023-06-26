@@ -5,19 +5,26 @@ public static class LoginCryptography
     private const byte EncryptionKey = 0xC3;
     private const byte EncryptionOffset = 0xF;
 
-    public static byte[] LoginEncrypt(ReadOnlySpan<byte> packet)
+    public static byte[] LoginEncrypt(byte[] packet)
     {
-        if (packet[^1] != 0xA)
-            packet = packet.ToArray().Append((byte)'\n').ToArray();
+        List<byte> output = new();
+        const byte EncryptionOffset = 0xF;
 
-        byte[] output = new byte[packet.Length];
+        if (packet[^1] != 0xA)
+        {
+            List<byte> packetList = packet.ToList();
+            packetList.Add((byte)'\n');
+            packet = packetList.ToArray();
+        }
+
         for (int i = 0; i < packet.Length; i++)
         {
             byte b = packet[i];
-            output[i] = (byte)(((b ^ EncryptionKey) + EncryptionOffset) & 0xFF);
+            byte result = (byte)((b + EncryptionOffset) & 0xFF);
+            output.Add(result);
         }
 
-        return output;
+        return output.ToArray();
     }
 
     public static byte[] LoginDecrypt(ReadOnlySpan<byte> packet)
