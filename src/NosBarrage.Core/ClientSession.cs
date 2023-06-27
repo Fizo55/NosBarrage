@@ -62,7 +62,6 @@ namespace NosBarrage.Core
                     decryptedData = WorldCryptography.WorldDecrypt(buffer.AsSpan(0, bytesRead).ToArray());
                 var packet = Encoding.UTF8.GetString(decryptedData);
                 Console.WriteLine(packet);
-
                 await _packetDeserializer.DeserializeAsync(packet, this);
             }
         }
