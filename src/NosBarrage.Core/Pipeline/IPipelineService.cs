@@ -4,5 +4,5 @@ namespace NosBarrage.Core.Pipeline;
 
 public interface IPipelineService
 {
-    Task StartAsync(LoginConfiguration configuration, CancellationToken cancellationToken = default);
+    Task StartAsync(IConfiguration configuration, bool isWorld = false, CancellationToken cancellationToken = default);
 }

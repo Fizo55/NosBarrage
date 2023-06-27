@@ -14,9 +14,9 @@ using NosBarrage.Shared.Configuration;
 using System.Reflection;
 using ILogger = Serilog.ILogger;
 
-namespace NosBarrage.Login;
+namespace NosBarrage.World;
 
-class LoginServerBootstrap
+class WorldServerBootstrap
 {
     static void ConfigureServices(HostBuilderContext host, IServiceCollection services)
     {
@@ -25,10 +25,10 @@ class LoginServerBootstrap
         var builder = new ConfigurationBuilder()
             .AddYamlFile("appsettings.yml", optional: false, reloadOnChange: true);
 
-        services.Configure<LoginConfiguration>(builder.Build());
-        var loginConfig = services.BuildServiceProvider().GetRequiredService<IOptions<LoginConfiguration>>().Value;
-        services.AddDbContext<NosBarrageContext>(options => options.UseNpgsql(loginConfig.Database));
-        services.AddHostedService<LoginServer>();
+        services.Configure<WorldConfiguration>(builder.Build());
+        var worldConfig = services.BuildServiceProvider().GetRequiredService<IOptions<WorldConfiguration>>().Value;
+        services.AddDbContext<NosBarrageContext>(options => options.UseNpgsql(worldConfig.Database));
+        services.AddHostedService<WorldServer>();
 
         services.AddSingleton(Logger.GetLogger());
         services.AddScoped(typeof(IDatabaseService<>), typeof(DatabaseService<>));

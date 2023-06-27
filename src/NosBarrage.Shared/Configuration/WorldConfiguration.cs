@@ -1,6 +1,6 @@
 ﻿namespace NosBarrage.Shared.Configuration;
 
-public record LoginConfiguration : IConfiguration
+public record WorldConfiguration : IConfiguration
 {
     public string Address { get; init; }
 

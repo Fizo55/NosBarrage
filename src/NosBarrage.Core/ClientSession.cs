@@ -13,13 +13,15 @@ namespace NosBarrage.Core
         private readonly PacketDeserializer _packetDeserializer;
         private NetworkStream _stream;
         private CancellationTokenSource _cts;
+        private bool _isWorld;
 
-        public ClientSession(TcpClient client, ILogger logger, PacketDeserializer packetDeserializer)
+        public ClientSession(TcpClient client, ILogger logger, PacketDeserializer packetDeserializer, bool isWorld = false)
         {
             _client = client;
             _logger = logger;
             _packetDeserializer = packetDeserializer;
             _stream = client.GetStream();
+            _isWorld = isWorld;
         }
 
         public async Task StartSessionAsync(CancellationToken cancellationToken)
@@ -53,9 +55,13 @@ namespace NosBarrage.Core
 
                 if (bytesRead == 0)
                     break;
-
-                var decryptedData = LoginCryptography.LoginDecrypt(buffer.AsSpan(0, bytesRead).ToArray());
+                byte[] decryptedData;
+                if (!_isWorld)
+                    decryptedData = LoginCryptography.LoginDecrypt(buffer.AsSpan(0, bytesRead).ToArray());
+                else
+                    decryptedData = WorldCryptography.WorldDecrypt(buffer.AsSpan(0, bytesRead).ToArray());
                 var packet = Encoding.UTF8.GetString(decryptedData);
+                Console.WriteLine(packet);
 
                 await _packetDeserializer.DeserializeAsync(packet, this);
             }

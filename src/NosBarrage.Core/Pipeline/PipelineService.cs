@@ -18,7 +18,7 @@ public class PipelineService : IPipelineService
         _packetDeserializer = packetDeserializer;
     }
 
-    public async Task StartAsync(LoginConfiguration configuration, CancellationToken cancellationToken = default)
+    public async Task StartAsync(IConfiguration configuration, bool isWorld = false, CancellationToken cancellationToken = default)
     {
         _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
@@ -30,7 +30,7 @@ public class PipelineService : IPipelineService
         while (!_cts.Token.IsCancellationRequested)
         {
             var client = await listener.AcceptTcpClientAsync();
-            var session = new ClientSession(client, _logger, _packetDeserializer);
+            var session = new ClientSession(client, _logger, _packetDeserializer, isWorld);
             _ = session.StartSessionAsync(_cts.Token);
         }
     }
