@@ -1,13 +1,13 @@
 ﻿using NosBarrage.Core;
 using NosBarrage.Core.Packets;
 using NosBarrage.Database.Services;
-using NosBarrage.Shared.Args.Login;
+using NosBarrage.PacketHandlers.Args.Login;
 using NosBarrage.Shared.Entities;
 using Serilog;
 
 namespace NosBarrage.PacketHandlers.Login;
 
-[PacketHandler("NoS0575")]
+[PacketHandler("NoS0575", typeof(NoS0575PacketArgs))]
 public class NoS0575PacketHandler : IPacketHandler<NoS0575PacketArgs>
 {
     private readonly ILogger _logger;

@@ -33,19 +33,32 @@ class WorldServerBootstrap
         services.AddSingleton(Logger.GetLogger());
         services.AddScoped(typeof(IDatabaseService<>), typeof(DatabaseService<>));
 
-        var type = typeof(NoS0575PacketHandler);
-        var handlerTypes = AppDomain.CurrentDomain.GetAssemblies().SelectMany(s => s.GetTypes()).Where(type.IsAssignableFrom).Where(s => !s.IsInterface);
+        // we shouldn't be using login packet there but I haven't coded the world now
+        var assembly = Assembly.GetAssembly(typeof(NoS0575PacketHandler));
+        var packetHandlerType = typeof(IPacketHandler<>);
+
+        var handlerTypes = assembly.GetTypes()
+            .Where(t => t.IsClass && !t.IsAbstract && t.GetInterfaces()
+                .Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == packetHandlerType));
+
         foreach (var handlerType in handlerTypes)
-            services.AddScoped(handlerType);
+        {
+            foreach (var interfaceType in handlerType.GetInterfaces())
+            {
+                if (interfaceType.IsGenericType && interfaceType.GetGenericTypeDefinition() == packetHandlerType)
+                {
+                    services.AddSingleton(typeof(IPacketHandler<object>), handlerType);
+                }
+            }
+        }
 
         services.AddSingleton(provider =>
         {
-            var assembly = Assembly.GetAssembly(typeof(NoS0575PacketHandler));
+            var handlers = provider.GetServices<IPacketHandler<object>>().ToList();
             var logger = provider.GetRequiredService<ILogger>();
-            return new PacketDeserializer(assembly!, logger, provider);
-        });
 
-        services.AddSingleton<IPipelineService, PipelineService>();
+            return new PacketHandlerResolver(handlers, logger);
+        });
 
         IServiceProvider serviceProvider = services.BuildServiceProvider();
     }

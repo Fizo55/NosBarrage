@@ -10,16 +10,16 @@ namespace NosBarrage.Core
     {
         private readonly TcpClient _client;
         private readonly ILogger _logger;
-        private readonly PacketDeserializer _packetDeserializer;
+        private readonly PacketHandlerResolver _packetResolver;
         private NetworkStream _stream;
         private CancellationTokenSource _cts;
         private bool _isWorld;
 
-        public ClientSession(TcpClient client, ILogger logger, PacketDeserializer packetDeserializer, bool isWorld = false)
+        public ClientSession(TcpClient client, ILogger logger, PacketHandlerResolver packetResolver, bool isWorld = false)
         {
             _client = client;
             _logger = logger;
-            _packetDeserializer = packetDeserializer;
+            _packetResolver = packetResolver;
             _stream = client.GetStream();
             _isWorld = isWorld;
         }
@@ -62,7 +62,7 @@ namespace NosBarrage.Core
                     decryptedData = WorldCryptography.WorldDecrypt(buffer.AsSpan(0, bytesRead).ToArray());
                 var packet = Encoding.UTF8.GetString(decryptedData);
                 Console.WriteLine(packet);
-                await _packetDeserializer.DeserializeAsync(packet, this);
+                await _packetResolver.HandlePacketAsync(packet, this);
             }
         }
 

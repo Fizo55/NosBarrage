@@ -9,13 +9,13 @@ namespace NosBarrage.Core.Pipeline;
 public class PipelineService : IPipelineService
 {
     private readonly ILogger _logger;
-    private readonly PacketDeserializer _packetDeserializer;
+    private readonly PacketHandlerResolver _packetResolver;
     private CancellationTokenSource _cts = null!;
 
-    public PipelineService(ILogger logger, PacketDeserializer packetDeserializer)
+    public PipelineService(ILogger logger, PacketHandlerResolver packetResolver)
     {
         _logger = logger;
-        _packetDeserializer = packetDeserializer;
+        _packetResolver = packetResolver;
     }
 
     public async Task StartAsync(IConfiguration configuration, bool isWorld = false, CancellationToken cancellationToken = default)
@@ -30,7 +30,7 @@ public class PipelineService : IPipelineService
         while (!_cts.Token.IsCancellationRequested)
         {
             var client = await listener.AcceptTcpClientAsync();
-            var session = new ClientSession(client, _logger, _packetDeserializer, isWorld);
+            var session = new ClientSession(client, _logger, _packetResolver, isWorld);
             _ = session.StartSessionAsync(_cts.Token);
         }
     }

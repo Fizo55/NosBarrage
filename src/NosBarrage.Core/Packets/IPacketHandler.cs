@@ -1,8 +1,6 @@
-﻿using System.Net.Sockets;
-
-namespace NosBarrage.Core.Packets;
+﻿namespace NosBarrage.Core.Packets;
 
 public interface IPacketHandler<T>
 {
-    Task HandleAsync(T args, ClientSession session);
+    Task HandleAsync(T data, ClientSession session);
 }

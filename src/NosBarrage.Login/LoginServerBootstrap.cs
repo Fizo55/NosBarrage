@@ -33,6 +33,9 @@ class LoginServerBootstrap
         services.AddSingleton(Logger.GetLogger());
         services.AddScoped(typeof(IDatabaseService<>), typeof(DatabaseService<>));
 
+        var assembly = Assembly.GetAssembly(typeof(NoS0575PacketHandler));
+        var packetHandlerType = typeof(IPacketHandler<>);
+
         var type = typeof(NoS0575PacketHandler);
         var handlerTypes = AppDomain.CurrentDomain.GetAssemblies().SelectMany(s => s.GetTypes()).Where(type.IsAssignableFrom).Where(s => !s.IsInterface);
         foreach (var handlerType in handlerTypes)
@@ -40,9 +43,10 @@ class LoginServerBootstrap
 
         services.AddSingleton(provider =>
         {
-            var assembly = Assembly.GetAssembly(typeof(NoS0575PacketHandler));
+            var handlers = provider.GetServices<IPacketHandler<object>>().ToList();
             var logger = provider.GetRequiredService<ILogger>();
-            return new PacketDeserializer(assembly!, logger, provider);
+
+            return new PacketHandlerResolver(handlers, logger);
         });
 
         services.AddSingleton<IPipelineService, PipelineService>();
