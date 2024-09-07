@@ -13,7 +13,7 @@
 
 - [.NET 7](https://dotnet.microsoft.com/download/dotnet/7.0)
 - [PostgreSQL](https://www.postgresql.org/download/)
-- [Visual Studio Code](https://code.visualstudio.com/download) or [Visual Studio 2019](https://visualstudio.microsoft.com/downloads/) (optional)
+- [Visual Studio 2019](https://visualstudio.microsoft.com/downloads/)
 
 ## Built With
 
